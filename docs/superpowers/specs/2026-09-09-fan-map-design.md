@@ -39,7 +39,7 @@ The upsert in `POST /fans/profile` reads, modifies, and writes `fans.json` using
 New module `server/src/fans.ts`, wired into `server/src/index.ts` alongside the existing routes:
 
 - `GET /teams` → `teams.json` contents.
-- `GET /localities?q=<text>` → localities whose `name` matches the query (case-insensitive substring match), capped to a reasonable page size (e.g. 20) for the search picker.
+- `GET /localities?q=<text>` → full `{ id, name, lat, lng }` records (not just `id`/`name`) for localities whose `name` matches the query (case-insensitive substring match), capped to a reasonable page size (e.g. 20) for the search picker.
 - `GET /fans/profile/:userId` → the user's saved `{ teamSlug, localityId }`, or 404 if none set yet.
 - `POST /fans/profile` → body `{ userId, teamSlug, localityId }`. Returns `400` with `{ error: string }` (matching the validation-error convention already used by `/token` and `/bot/banter`) if `userId`/`teamSlug`/`localityId` are missing, or if `teamSlug`/`localityId` don't match a known entry in `teams.json`/`localities.json`. On success, upserts into `fans.json` and returns the saved record.
 - `GET /matches/:matchId/fan-map` → 404 if match unknown, or if the match has no `teamA`/`teamB` (some fixtures in `matches.json` omit them) — respond with a clear error rather than an empty map, since the feature has nothing to show. Otherwise reads the match's `teamA`/`teamB` slugs, merges `fans.json` + `fans.seed.json`, filters to records whose `teamSlug` matches either team, joins each remaining record against `localities.json` by `localityId` to get `lat`/`lng` (skipping and logging any record whose `localityId` no longer exists in `localities.json`), groups by locality per team, and returns:
@@ -64,7 +64,7 @@ Resolving "does this user already have a profile" is a single sequential check, 
 
 ### Fan Map screen (`src/app/match/[matchId]/fan-map.tsx`)
 
-- New tab/link alongside the existing match chat screen (`src/app/match/[matchId]/chat.tsx`), added to the match's index/nav — shown only when the match has both `teamA` and `teamB` (mirroring `chat.tsx`'s existing `hasBotTeams` gating), since `GET /matches/:matchId/fan-map` 404s otherwise. Matches without both teams (e.g. `arg-esp-2026`, `bra-fra-2026` in current fixtures) simply don't show the tab.
+- New tab/link alongside the existing match chat screen (`src/app/match/[matchId]/chat.tsx`), added to the match's index/nav — shown only when the match has both `teamA` and `teamB`, since `GET /matches/:matchId/fan-map` 404s otherwise. This is new gating logic, not reused from elsewhere: today `index.tsx`'s "Open chat" link renders unconditionally, and `chat.tsx`'s `hasBotTeams` check only toggles the in-chat banter buttons, not navigation — neither hides a nav link based on team presence, so this is the first instance of that pattern. Matches without both teams (e.g. `arg-esp-2026`, `bra-fra-2026` in current fixtures) simply don't show the Fan Map tab.
 - Fetches `GET /matches/:matchId/fan-map` on mount, with loading and error states matching the pattern already established in `chat.tsx` (a retry affordance on failure, distinct from "loaded but empty").
 - Renders `react-native-maps`' `MapView` centered/bounded on India, with two `Heatmap` layers, one per team, using distinct color gradients (e.g. red-scale for `teamA`, blue-scale for `teamB`) at moderate opacity so overlapping areas visually blend.
 - If the current user's own team isn't one of this match's two teams, they simply don't appear in this map's data — no special-casing needed client-side.
@@ -90,3 +90,4 @@ Resolving "does this user already have a profile" is a single sequential check, 
 - Regions beyond India.
 - Live shifts in fan density tied to match score/events (reusing the existing sim harness timing model).
 - Per-match affiliation override for neutral/glory-hunting fans.
+- An edit-profile screen/affordance to change team or locality after initial setup. The backend upsert supports overwriting a profile, but this slice ships no client UI to trigger it — a user's only way to change their profile in v1 is clearing local app storage (which also resets their guest identity).
