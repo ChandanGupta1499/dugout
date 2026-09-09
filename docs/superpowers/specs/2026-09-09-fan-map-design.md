@@ -15,6 +15,7 @@ Users want to see, on a map, where fans of each team in a match are concentrated
 
 - Real device GPS location (locality is manually picked from a list).
 - Regions outside India.
+- Web support. `react-native-maps` has no built-in web renderer; the web build shows a simple "not available on web" fallback instead of the map.
 - Per-match affiliation overrides (affiliation is a global, one-time profile setting).
 - Live/animated shifts in density tied to score or match events.
 - Any change to the existing match chat, sim harness, or bot-banter features.
@@ -74,7 +75,7 @@ Resolving "does this user already have a profile" is a single sequential check, 
 ## Technical risks / setup requirements
 
 - `react-native-maps`'s `Heatmap` component requires the **Google Maps provider on iOS** (Apple Maps doesn't support heatmaps natively); Android already defaults to Google Maps. This means:
-  - A Google Maps API key needs to be added to `app.json` (both `ios.config.googleMapsApiKey` and `android.config.googleMaps.apiKey`).
+  - A Google Maps API key needs to be added via the `react-native-maps` Expo config plugin in `app.json` (`iosGoogleMapsApiKey` and `androidGoogleMapsApiKey` — confirmed against the versioned SDK 57 docs during implementation planning, superseding the older `ios.config.googleMapsApiKey`/`android.config.googleMaps.apiKey` style this section originally guessed at).
   - Because this pulls in a native module, it requires a **dev-client rebuild** (`expo prebuild` / new dev client build), not just a JS reload — consistent with this project already using `expo-dev-client` rather than Expo Go.
 - Exact API shape and config keys must be checked against the versioned Expo SDK 57 docs (per `AGENTS.md`) before implementation, since `react-native-maps` config-plugin behavior has changed across Expo SDK versions.
 
