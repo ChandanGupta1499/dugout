@@ -1,56 +1,89 @@
-# Welcome to your Expo app 👋
+# Dugout
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo app for live match chat, backed by Stream Chat and a small Express token server.
 
-## Get started
+## Prerequisites
 
-1. Install dependencies
+1. A [Stream Chat](https://getstream.io/chat/) app (API key + secret)
+2. Node 20+
+3. A development build — `stream-chat-expo` does **not** run in Expo Go
 
-   ```bash
-   npm install
-   ```
+## Setup
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### 1. Server
 
 ```bash
-npm run reset-project
+cd server
+cp .env.example .env
+# set STREAM_API_KEY and STREAM_API_SECRET
+npm install
+npm run dev
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Server listens on `http://localhost:3001` by default.
 
-### Other setup steps
+### 2. App
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+cp .env.example .env
+# set EXPO_PUBLIC_API_URL and EXPO_PUBLIC_STREAM_API_KEY
+npm install
+```
 
-## Learn more
+On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN IP (e.g. `http://192.168.1.10:3001`).
 
-To learn more about developing your project with Expo, look at the following resources:
+Android emulator: `localhost` in `.env` is fine — the app rewrites it to `10.0.2.2` (host machine). Curl on your Mac still uses `http://localhost:3001`.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### 3. Run
 
-## Join the community
+`stream-chat-expo` includes native modules (e.g. `StreamVideoThumbnail`). It **does not work in Expo Go**.
 
-Join our community of developers creating universal apps.
+First time (or after adding/changing native deps), build a development client:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+# terminal 1
+npm run server
+
+# terminal 2
+bun run android
+# or: bun run ios
+```
+
+That runs `expo run:android` / `expo run:ios`, which generates native projects and installs a binary that includes Stream’s modules.
+
+Later sessions (binary already installed):
+
+```bash
+npm run start   # expo start --dev-client
+```
+
+Do **not** use plain `expo start` / Expo Go for this app.
+## Smoke test
+
+1. Open the app as guest A, pick a match, open chat, send a message.
+2. Clear app storage / reinstall (or use a second simulator) as guest B, open the **same** match chat.
+3. Confirm both guests see each other's messages in one `match-{matchId}` channel.
+
+## Routes
+
+- `/` — stub match list
+- `/match/[matchId]` — match stub + Open chat
+- `/match/[matchId]/chat` — Stream Channel UI
+
+## API
+
+See [`server/README.md`](server/README.md) for local setup, endpoints, and **Render onboarding**.
+
+Match list comes from the server (`GET /matches` / `data/matches.json`).
+
+### Host on Render
+
+1. Use the Blueprint at [`server/render.yaml`](server/render.yaml) (Dashboard → **New** → **Blueprint**, path `server/render.yaml`) or create a Web Service with root directory `server`.
+2. Set `STREAM_API_KEY`, `STREAM_API_SECRET`, and `GEMINI_API_KEY` in the Render dashboard.
+3. After deploy, set the app env and rebuild if needed:
+
+```bash
+EXPO_PUBLIC_API_URL=https://YOUR-SERVICE.onrender.com
+```
+
+Full steps: [`server/README.md`](server/README.md#deploy-on-render-onboarding).

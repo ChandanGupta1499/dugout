@@ -4,12 +4,16 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo/ui": "~57.0.17",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "12.0.1",
     "expo": "~57.0.21",
     "expo-constants": "~57.0.17",
+    "expo-dev-client": "~57.0.18",
     "expo-device": "~57.0.1",
     "expo-font": "~57.0.3",
     "expo-glass-effect": "~57.0.2",
     "expo-image": "~57.0.4",
+    "expo-image-manipulator": "~57.0.16",
     "expo-linking": "~57.0.9",
     "expo-router": "~57.0.20",
     "expo-splash-screen": "~57.0.8",
@@ -24,20 +28,32 @@
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
+    "react-native-teleport": "^1.2.1",
     "react-native-web": "~0.21.0",
-    "react-native-worklets": "0.10.1"
+    "react-native-worklets": "0.10.1",
+    "stream-chat-expo": "^9.8.2"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --dev-client",
+    "server": "npm --prefix server run dev",
+    "server:start": "npm --prefix server run start",
+    "sim-ui": "npm --prefix sim-ui run dev",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild",
     "web": "expo start --web",
     "lint": "expo lint"
   },
-  "private": true
+  "private": true,
+  "reanimated": {
+    "staticFeatureFlags": {
+      "FORCE_REACT_RENDER_FOR_SETTLED_ANIMATIONS": false
+    }
+  }
 }

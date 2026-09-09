@@ -1,0 +1,25 @@
+# Dugout API — Render Blueprint
+# https://render.com/docs/blueprint-spec
+#
+# In the Render dashboard: New → Blueprint → connect this repo,
+# and set the Blueprint path to server/render.yaml.
+# Fill in the three secret env vars when prompted, then deploy.
+
+services:
+  - type: web
+    name: dugout-server
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: STREAM_API_KEY
+        sync: false
+      - key: STREAM_API_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

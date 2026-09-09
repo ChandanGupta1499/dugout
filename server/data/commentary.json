@@ -1,0 +1,109 @@
+{
+  "rma-inter-ucl-2026": {
+    "commentary_timeline": [
+      {
+        "minute": "1'",
+        "type": "kickoff",
+        "text": "Referee Michael Oliver blows his whistle and we are underway! The players are making their way out onto the pitch, and kick-off is fast approaching here in Madrid!"
+      },
+      {
+        "minute": "3'",
+        "type": "chance",
+        "text": "SAVED! The first real chance of the game goes the way of Inter. Martinez slips in Diouf, who manages to clip his pass to Thuram, and his half-volley is parried behind by Courtois. The following corner comes to nothing, though."
+      },
+      {
+        "minute": "5'",
+        "type": "free_kick",
+        "text": "Bellingham wins a free-kick as Calhanoglu slips and accidentally trips the England midfielder. Alexander-Arnold delivers well and manages to win his side a corner."
+      },
+      {
+        "minute": "7'",
+        "type": "corner",
+        "text": "Alexander-Arnold goes over to take the corner that his free-kick won. But it's met with a thumping headed clearance from Inter."
+      },
+      {
+        "minute": "9'",
+        "type": "commentary",
+        "text": "Inter have probably looked the more comfortable of the two sides so far in truth. Madrid haven't yet found a good rhythm."
+      },
+      {
+        "minute": "11'",
+        "type": "near_own_goal",
+        "text": "ALMOST AN OWN GOAL! Diouf has made a lively start on the right for Inter, he delivers a low, left-foot cross that Huijsen just about scrambles for a corner, but he didn't know much about it and Courtois was nowhere."
+      },
+      {
+        "minute": "13'",
+        "type": "chance",
+        "text": "Martinez gets a shot away from around 20 yards, which Courtois does well to down to and parry clear."
+      },
+      {
+        "minute": "14'",
+        "type": "goal",
+        "team": "Real Madrid",
+        "scorer": "Kylian Mbappé",
+        "assist": "Brahim Díaz",
+        "score_after": "1-0",
+        "text": "GOOOOOOAAAAAAAL! MBAPPE POUNCES! Oh, Inter get themselves into a real mess here! A loose ball is miscontrolled by Bisseck, and Brahim Diaz is onto it like a flash. He slips Mbappe in, and the France ace clinically dispatches his effort past Josep Martinez! Madrid lead 1-0!"
+      },
+      {
+        "minute": "14'",
+        "type": "commentary",
+        "text": "It was poor from Inter's point of view, but fair play to Brahim Diaz, who was so quick with his reactions, then had the calmness to play in Mbappe."
+      },
+      {
+        "minute": "16'",
+        "type": "chance",
+        "text": "SAVED AGAIN! Inter win a free-kick in 'Calhanoglu territory'. The Turkey ace strikes it well from about inside the D, and Courtois strongly palms it clear. That one was hit."
+      },
+      {
+        "minute": "18'",
+        "type": "chance",
+        "text": "Inter got in behind, but Diouf's effort was scuffed. At the other end, Mbappe gets in but this time Inter recover."
+      },
+      {
+        "minute": "20'",
+        "type": "penalty_claim",
+        "text": "PENALTY CLAIM! It's more sloppy play from Inter as Barella is dispossessed by Valverde. Vinicius picks up the loose pass and marauds forward. He goes to ground, but replays show that Pavard makes an unbelievable tackle just as the Brazil ace is about to pull the trigger. Sensational defending."
+      },
+      {
+        "minute": "22'",
+        "type": "commentary",
+        "text": "Honestly, Inter will have no idea how they are losing this. Prior to the goal, the famously impatient Bernabeu crowd was starting to whistle as Madrid were doing very little. But one mistake was punished, and the goal came from Madrid's only shot on target so far."
+      },
+      {
+        "minute": "23'",
+        "type": "goal",
+        "team": "Real Madrid",
+        "scorer": "Federico Valverde",
+        "assist": null,
+        "score_after": "2-0",
+        "text": "OH NO! JOSEP MARTINEZ WHAT HAVE YOU DONE?! It's another absolute disaster from an Inter point of view! Pavard plays a simple pass back to his goalkeeper, who inexplicably dawdles on the ball, Valverde closes down and makes the tackle, and the ball nestles in the back of the goal! A horror show again for Inter, and Madrid now lead 2-0!"
+      },
+      {
+        "minute": "25'",
+        "type": "corner",
+        "text": "Inter win a corner as they attempt to find a way back into the game, but Calhanoglu's delivery is headed away by Konate."
+      },
+      {
+        "minute": "27'",
+        "type": "chance",
+        "text": "What a tackle again! Madrid come racing forward once more through Vinicius, it's worked to Brahim Diaz, and then into Mbappe, but Bisseck makes a wonderful sliding challenge to deny the shot."
+      },
+      {
+        "minute": "29'",
+        "type": "chance",
+        "text": "Inter work the ball into the box, and Calhanoglu shapes to shoot before Vinicius gets back well to make an excellent recovery tackle."
+      },
+      {
+        "minute": "31'",
+        "type": "commentary",
+        "text": "It's been such a bizarre game this, Madrid are 2-0 up having barely had to do anything. Another rapid pass from Vinicius almost finds Mbappe, but Inter clear their lines this time."
+      },
+      {
+        "minute": "33'",
+        "type": "free_kick",
+        "text": "Inter now have a free-kick in a dangerous position on the right. Courtois palms it away, and needs a bit of treatment after being clattered by a combination of Huijsen and Lautaro Martinez."
+      }
+    ]
+  }
+}

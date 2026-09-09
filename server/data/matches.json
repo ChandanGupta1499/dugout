@@ -1,0 +1,34 @@
+[
+  {
+    "id": "eng-arg-semi-2026",
+    "title": "England vs Argentina",
+    "subtitle": "Sim replay · World Cup semi",
+    "channelType": "messaging",
+    "channelId": "match-eng-arg-semi-2026-v3",
+    "teamA": { "slug": "england", "label": "England" },
+    "teamB": { "slug": "argentina", "label": "Argentina" }
+  },
+  {
+    "id": "rma-inter-ucl-2026",
+    "title": "Real Madrid vs Inter Milan",
+    "subtitle": "Champions League · kickoff soon",
+    "channelType": "messaging",
+    "channelId": "match-rma-inter-ucl-2026",
+    "teamA": { "slug": "real-madrid", "label": "Real Madrid" },
+    "teamB": { "slug": "inter-milan", "label": "Inter Milan" }
+  },
+  {
+    "id": "arg-esp-2026",
+    "title": "Argentina vs Spain",
+    "subtitle": "Live match chat",
+    "channelType": "messaging",
+    "channelId": "match-arg-esp-2026-v2"
+  },
+  {
+    "id": "bra-fra-2026",
+    "title": "Brazil vs France",
+    "subtitle": "Live match chat",
+    "channelType": "messaging",
+    "channelId": "match-bra-fra-2026"
+  }
+]

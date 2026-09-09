@@ -8,9 +8,11 @@
     "scheme": "dugout",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.dugout.app"
     },
     "android": {
+      "package": "com.dugout.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -23,6 +25,7 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+    "newArchEnabled": true,
     "plugins": [
       "expo-router",
       [
