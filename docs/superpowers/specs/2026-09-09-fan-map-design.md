@@ -28,6 +28,12 @@ New files under `server/data/`:
 - **`fans.json`** — one record per real user, upserted by `userId`: `{ userId: string, teamSlug: string, localityId: string, updatedAt: string }[]`. A user has exactly one active team + locality at a time; setting a new one overwrites the old.
 - **`fans.seed.json`** — a batch of fake records in the same shape as `fans.json`, with `userId` values like `seed-<n>`, distributed across localities and the teams in `teams.json`. Loaded and merged with `fans.json` at read time (seed records are read-only, never mutated by real writes).
 
+Unlike `matches.ts`'s `loadMatches`, which caches the parsed file forever (safe only because `matches.json` never changes at runtime), `fans.ts` must **read `fans.json` fresh on every request** (no module-level cache) since `POST /fans/profile` mutates it. `teams.json` and `localities.json` are static like `matches.json` and can use the same load-once-and-cache pattern.
+
+The upsert in `POST /fans/profile` reads, modifies, and writes `fans.json` using **synchronous `fs` calls** (`readFileSync`/`writeFileSync`) with no `await` between them, so within Node's single-threaded event loop the read-modify-write cannot be interleaved by a concurrent request. This is sufficient for this feature's scale; a real multi-writer datastore is future work if needed.
+
+**Known limitation:** guest IDs (`src/lib/guest.ts`) regenerate whenever local storage is cleared or the app is reinstalled, and a profile is a permanent one-time setting with no expiry — so `fans.json` will accumulate orphaned records from abandoned guest IDs over time. Acceptable for this slice; not cleaned up.
+
 ## API
 
 New module `server/src/fans.ts`, wired into `server/src/index.ts` alongside the existing routes:
@@ -35,33 +41,35 @@ New module `server/src/fans.ts`, wired into `server/src/index.ts` alongside the 
 - `GET /teams` → `teams.json` contents.
 - `GET /localities?q=<text>` → localities whose `name` matches the query (case-insensitive substring match), capped to a reasonable page size (e.g. 20) for the search picker.
 - `GET /fans/profile/:userId` → the user's saved `{ teamSlug, localityId }`, or 404 if none set yet.
-- `POST /fans/profile` → body `{ userId, teamSlug, localityId }`; validates both slug and locality id exist, upserts into `fans.json`, returns the saved record.
-- `GET /matches/:matchId/fan-map` → 404 if match unknown. Otherwise reads the match's `teamA`/`teamB` slugs, merges `fans.json` + `fans.seed.json`, filters to records whose `teamSlug` matches either team, groups by `localityId` per team, and returns:
+- `POST /fans/profile` → body `{ userId, teamSlug, localityId }`. Returns `400` with `{ error: string }` (matching the validation-error convention already used by `/token` and `/bot/banter`) if `userId`/`teamSlug`/`localityId` are missing, or if `teamSlug`/`localityId` don't match a known entry in `teams.json`/`localities.json`. On success, upserts into `fans.json` and returns the saved record.
+- `GET /matches/:matchId/fan-map` → 404 if match unknown, or if the match has no `teamA`/`teamB` (some fixtures in `matches.json` omit them) — respond with a clear error rather than an empty map, since the feature has nothing to show. Otherwise reads the match's `teamA`/`teamB` slugs, merges `fans.json` + `fans.seed.json`, filters to records whose `teamSlug` matches either team, joins each remaining record against `localities.json` by `localityId` to get `lat`/`lng` (skipping and logging any record whose `localityId` no longer exists in `localities.json`), groups by locality per team, and returns:
   ```json
   {
     "teamA": [{ "lat": 19.0, "lng": 72.8, "weight": 12 }],
     "teamB": [{ "lat": 12.97, "lng": 77.59, "weight": 7 }]
   }
   ```
-  `weight` is the fan count at that locality. If a match has no `teamA`/`teamB` (some fixtures in `matches.json` omit them), respond `404` with a clear error rather than an empty map, since the feature has nothing to show.
+  `weight` is the fan count at that locality.
 
 ## Client
 
 ### Profile setup (one-time)
 
-Triggered the first time a user opens any match's Fan Map tab and has no cached profile:
+Resolving "does this user already have a profile" is a single sequential check, to avoid the setup modal flashing for a user who has one server-side but not yet cached locally:
 
-1. Fetch `GET /teams`; present as a picker, defaulting the visible list to the current match's two teams (with an option to see the full list) — but the saved affiliation is global, not tied to this match.
-2. Locality picker: text input that queries `GET /localities?q=` as the user types, single-select from results.
-3. On confirm, `POST /fans/profile` with the guest `userId` (from `src/lib/guest.ts`), then cache `{ teamSlug, localityId }` in AsyncStorage under a `dugout.fanProfile` key so the prompt doesn't repeat. Also refresh from `GET /fans/profile/:userId` on app start in case the cache is stale/cleared.
+1. On opening the Fan Map tab, check AsyncStorage (`dugout.fanProfile`) first. If present, use it immediately (no network round-trip needed).
+2. If absent, call `GET /fans/profile/:userId` and wait for that to resolve (showing a loading state) before deciding whether to show the setup modal. A 404 means truly no profile → show setup. A found profile gets written into AsyncStorage and used directly, with no modal shown.
+3. Setup modal (only reached after step 2 confirms no profile exists): fetch `GET /teams`, present as a picker defaulting the visible list to the current match's two teams (with an option to see the full list) — the saved affiliation is global, not tied to this match. Then a locality picker: text input that queries `GET /localities?q=` as the user types, single-select from results.
+4. On confirm, `POST /fans/profile` with the guest `userId` (from `src/lib/guest.ts`), then cache `{ teamSlug, localityId }` in AsyncStorage under `dugout.fanProfile`.
 
 ### Fan Map screen (`src/app/match/[matchId]/fan-map.tsx`)
 
-- New tab/link alongside the existing match chat screen (`src/app/match/[matchId]/chat.tsx`), added to the match's index/nav.
-- Fetches `GET /matches/:matchId/fan-map` on mount.
+- New tab/link alongside the existing match chat screen (`src/app/match/[matchId]/chat.tsx`), added to the match's index/nav — shown only when the match has both `teamA` and `teamB` (mirroring `chat.tsx`'s existing `hasBotTeams` gating), since `GET /matches/:matchId/fan-map` 404s otherwise. Matches without both teams (e.g. `arg-esp-2026`, `bra-fra-2026` in current fixtures) simply don't show the tab.
+- Fetches `GET /matches/:matchId/fan-map` on mount, with loading and error states matching the pattern already established in `chat.tsx` (a retry affordance on failure, distinct from "loaded but empty").
 - Renders `react-native-maps`' `MapView` centered/bounded on India, with two `Heatmap` layers, one per team, using distinct color gradients (e.g. red-scale for `teamA`, blue-scale for `teamB`) at moderate opacity so overlapping areas visually blend.
 - If the current user's own team isn't one of this match's two teams, they simply don't appear in this map's data — no special-casing needed client-side.
 - Standard map interactions (pinch/zoom/pan) come from `MapView` for free; no custom clustering/marker logic needed since density is conveyed by the heatmap layers rather than discrete pins.
+- **Known limitation:** if a user's real-world city isn't among the ~40-60 seeded localities, they pick the closest available option — no free-text/custom-coordinate entry in this slice.
 
 ## Technical risks / setup requirements
 
