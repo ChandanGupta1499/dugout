@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronLeft, Plus, Send, XCircle } from 'lucide-react-native';
+import { CheckCircle2, ChevronLeft, Gamepad2, Plus, Send, XCircle } from 'lucide-react-native';
 
 const ICONS = {
   'chevron-left': ChevronLeft,
@@ -6,6 +6,7 @@ const ICONS = {
   send: Send,
   'circle-check': CheckCircle2,
   'circle-x': XCircle,
+  gamepad: Gamepad2,
 } as const;
 
 type Props = {

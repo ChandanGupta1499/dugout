@@ -34,7 +34,7 @@ import {
 import type { Match, MatchTeam } from '@/lib/matches';
 import { MOCK_QUIZ_QUESTION } from '@/lib/quiz-mock';
 import { isReactionType, type ReactionType } from '@/lib/reactions';
-import { fonts, semantic, spacing } from '@/theme/tokens';
+import { semantic, spacing } from '@/theme/tokens';
 import { useGuest } from '@/providers/chat-provider';
 
 function classifyMessage(message: LocalMessage, guestId: string): ChatBubbleKind {
@@ -436,16 +436,6 @@ export default function MatchChatScreen() {
               onTrigger={(team) => void triggerBanter(team)}
             />
           ) : null}
-          <View style={styles.quizTriggerRow}>
-            <Pressable
-              style={styles.quizTriggerButton}
-              onPress={() => {
-                Keyboard.dismiss();
-                setQuizOpen(true);
-              }}>
-              <Text style={styles.quizTriggerLabel}>Quiz</Text>
-            </Pressable>
-          </View>
           <View style={[styles.composerWrap, { paddingBottom: composerBottomPad }]}>
             <Composer
               value={draft}
@@ -461,6 +451,12 @@ export default function MatchChatScreen() {
                 Keyboard.dismiss();
                 setMediaOpen(true);
               }}
+              onOpenQuiz={() => {
+                setReactionTargetId(null);
+                Keyboard.dismiss();
+                setQuizOpen(true);
+              }}
+              quizBadge
             />
           </View>
         </KeyboardAvoidingView>
@@ -530,24 +526,5 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: semantic.lineHairline,
     backgroundColor: semantic.surfacePage,
-  },
-  quizTriggerRow: {
-    paddingHorizontal: spacing.gutterScreen,
-    paddingTop: spacing.s4,
-  },
-  quizTriggerButton: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.s6,
-    paddingVertical: spacing.s3,
-    borderRadius: spacing.controlHSm / 2,
-    borderWidth: 1,
-    borderColor: semantic.lineBrand,
-    backgroundColor: semantic.surfaceTint,
-  },
-  quizTriggerLabel: {
-    fontFamily: fonts.button,
-    fontSize: 13,
-    color: semantic.textBrand,
-    textTransform: 'uppercase',
   },
 });
