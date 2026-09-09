@@ -139,7 +139,7 @@ export const MOCK_QUIZ_QUESTION: QuizQuestion = {
 
 - [ ] **Step 2: Commit** (after Task 4 creates `QuizSheet.tsx` and its exported types — do this step then, so the import resolves; skip committing this file standalone)
 
-Leave this file uncommitted for now; it will be committed together with Task 4 since it depends on `QuizSheet.tsx`'s exported types.
+Leave this file uncommitted for now; it will be committed together with Task 4 since it depends on `QuizSheet.tsx`'s exported types. `tsc --noEmit` will report an unresolved-import error on this file until Task 4 creates `QuizSheet.tsx` — that's expected; don't try to fix it here.
 
 ---
 
@@ -492,9 +492,11 @@ import {
 import type { Match, MatchTeam } from '@/lib/matches';
 import { MOCK_QUIZ_QUESTION } from '@/lib/quiz-mock';
 import { isReactionType, type ReactionType } from '@/lib/reactions';
-import { semantic, spacing } from '@/theme/tokens';
+import { fonts, semantic, spacing } from '@/theme/tokens';
 import { useGuest } from '@/providers/chat-provider';
 ```
+
+Note the `@/theme/tokens` import now includes `fonts` (needed by `quizTriggerLabel` in Step 5) alongside the existing `semantic, spacing`.
 
 - [ ] **Step 3: Add the trigger row above the composer**
 
@@ -617,12 +619,6 @@ Replace it with:
     textTransform: 'uppercase',
   },
 });
-```
-
-Note: `fonts` isn't currently imported in `chat.tsx` (only `semantic, spacing` are, per the existing `import { semantic, spacing } from '@/theme/tokens';` on line 35). Update that import line (already shown updated in Step 2 above) — confirm it now reads:
-
-```tsx
-import { fonts, semantic, spacing } from '@/theme/tokens';
 ```
 
 - [ ] **Step 6: Verify it compiles**
