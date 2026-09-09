@@ -39,6 +39,9 @@ yarn-error.*
 # sim harness runtime state
 server/data/sim/session.json
 
+# worktrees
+.worktrees/
+
 # typescript
 *.tsbuildinfo
 
