@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   StyleSheet,
@@ -10,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useChatContext } from 'stream-chat-expo';
 import type { Channel as StreamChannel, LocalMessage } from 'stream-chat';
 
@@ -30,6 +31,9 @@ import type { Match, MatchTeam } from '@/lib/matches';
 import { semantic, spacing } from '@/theme/tokens';
 import { useGuest } from '@/providers/chat-provider';
 
+/** Android edge-to-edge often under-reports IME height by ~1 gesture inset chunk. */
+const ANDROID_KEYBOARD_EXTRA = 16;
+
 function classifyMessage(message: LocalMessage, guestId: string): ChatBubbleKind {
   const userId = message.user?.id ?? '';
   if (userId === guestId) return 'own';
@@ -41,6 +45,7 @@ export default function MatchChatScreen() {
   const { matchId } = useLocalSearchParams<{ matchId: string }>();
   const guest = useGuest();
   const { client } = useChatContext();
+  const insets = useSafeAreaInsets();
 
   const [match, setMatch] = useState<Match | null>(null);
   const [channel, setChannel] = useState<StreamChannel | null>(null);
@@ -51,8 +56,33 @@ export default function MatchChatScreen() {
   const [pendingTeam, setPendingTeam] = useState<string | null>(null);
   const [banterError, setBanterError] = useState<string | null>(null);
   const [scoreboard, setScoreboard] = useState<MatchScoreboard | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const hasBotTeams = Boolean(match?.teamA && match?.teamB);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const resolveOverlap = (event: { endCoordinates: { height: number; screenY: number } }) => {
+      const windowHeight = Dimensions.get('window').height;
+      const fromScreenY = Math.max(0, windowHeight - event.endCoordinates.screenY);
+      const overlap = Math.max(event.endCoordinates.height, fromScreenY);
+      return overlap + (Platform.OS === 'android' ? ANDROID_KEYBOARD_EXTRA : 0);
+    };
+
+    const onShow = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(resolveOverlap(event));
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, []);
 
   const joinChannel = useCallback(async () => {
     if (!matchId) {
@@ -204,13 +234,13 @@ export default function MatchChatScreen() {
     );
   }
 
+  const bottomInset = keyboardHeight > 0 ? keyboardHeight : insets.bottom;
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <SafeAreaView style={styles.flex} edges={['top']}>
+        <View style={[styles.flex, { paddingBottom: bottomInset }]}>
           <ChatHeader
             title={match?.title ?? 'Chat'}
             meta={scoreboard ? scoreboard.clockLabel : undefined}
@@ -226,6 +256,8 @@ export default function MatchChatScreen() {
             data={orderedMessages}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.feed}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
             renderItem={({ item }) => (
               <ChatBubble
                 kind={classifyMessage(item, guest.userId)}
@@ -250,7 +282,7 @@ export default function MatchChatScreen() {
           <View style={styles.composerWrap}>
             <Composer value={draft} onChangeText={setDraft} onSend={() => void sendMessage()} />
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </SafeAreaView>
     </>
   );

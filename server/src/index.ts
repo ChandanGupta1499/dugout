@@ -2,6 +2,7 @@ import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
 
+import { adminRouter } from './admin.js';
 import { postTeamBanter } from './bot.js';
 import { getMatch, listMatches } from './matches.js';
 import { getMatchScoreboard } from './scoreboard.js';
@@ -32,6 +33,7 @@ app.use((req, res, next) => {
 });
 
 app.use(simRouter);
+app.use(adminRouter);
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
@@ -199,6 +201,11 @@ async function main() {
     if (!process.env.GEMINI_API_KEY) {
       console.warn(
         'Warning: GEMINI_API_KEY is not set. Copy server/.env.example to server/.env before using /bot/banter.',
+      );
+    }
+    if (!process.env.ADMIN_API_KEY) {
+      console.warn(
+        'Warning: ADMIN_API_KEY is not set. /admin/* routes will return 503 until it is configured.',
       );
     }
   });

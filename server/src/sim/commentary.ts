@@ -72,7 +72,7 @@ export function getSimCommentaryUpTo(
   }));
 }
 
-/** Used by context.ts: return time-filtered sim commentary or null to fall back. */
+/** Used by context.ts: return time-filtered sim commentary, or null when sim is off for this match. */
 export function tryGetSimCommentary(matchId: string): SimCommentaryLine[] | null {
   const minute = getActiveSimMatchMinute(matchId);
   if (minute == null) {

@@ -15,9 +15,10 @@ Required env:
 - `STREAM_API_KEY` / `STREAM_API_SECRET` — Stream Chat dashboard
 - `GEMINI_API_KEY` — Google AI Studio / Gemini API key
 - `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — Supabase project (service role; server only)
+- `ADMIN_API_KEY` — shared secret for sim-ui `/admin/*` inject routes (`X-Admin-Key` header)
 - `PORT` — optional locally (defaults to `3001`); Render sets this automatically
 
-2. Apply the SQL migration in [`supabase/migrations/`](supabase/migrations/) once per project (Supabase SQL editor or CLI). That creates `matches` + `sim_sessions` and seeds the known fixtures.
+2. Apply the SQL migrations in [`supabase/migrations/`](supabase/migrations/) once per project (Supabase SQL editor or CLI). That creates `matches`, `sim_sessions`, `match_commentary`, and seeds known fixtures.
 
 3. Install and run:
 
@@ -30,7 +31,7 @@ Server defaults to `http://localhost:3001`.
 
 Match rows live in Supabase `matches` (`channel_id` nullable). Edit in the dashboard — no redeploy required. Historical seed snapshot: [`data/matches.json`](data/matches.json) (not read at runtime).
 
-Mock live commentary for bot banter (non-sim) lives in [`data/commentary.json`](data/commentary.json), keyed by match `id`. Sim commentary stays in [`data/sim/`](data/sim/).
+Shared live commentary for bot banter (non-sim) lives in Supabase `match_commentary` (inject via sim-ui or `POST /admin/commentary`). If a match has no rows and no active sim session, banter gets **empty** commentary context. Active YouTube sim still uses time-filtered [`data/sim/commentary.json`](data/sim/).
 
 Sim progress persists in Supabase `sim_sessions`. After a backend restart the sim restores as **paused** — hit Resume in sim-ui. **Stop** clears the row.
 
@@ -49,6 +50,7 @@ Repo includes [`render.yaml`](render.yaml) in this folder so you can deploy with
    - `GEMINI_API_KEY`
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
+   - `ADMIN_API_KEY`
 5. Deploy. Render will:
    - use this `server/` directory as the service root
    - run `npm install`
@@ -97,6 +99,9 @@ EXPO_PUBLIC_STREAM_API_KEY=your_stream_api_key
 - `POST /token` body `{ userId, name }` → `{ apiKey, token, user }`
 - `POST /channels/match` body `{ matchId, userId }` → `{ channelType, channelId }` (400 if match has no channel id)
 - `POST /bot/banter` body `{ matchId, team }` → `{ text, botUserId, messageId, channelId }`
+- `POST /admin/chat` header `X-Admin-Key` body `{ matchId, text, author? }` → Stream crowd message
+- `POST /admin/commentary` header `X-Admin-Key` body `{ matchId, text, minute?, type?, scoreAfter? }` → Supabase row
+- `GET /admin/commentary?matchId=` header `X-Admin-Key` → commentary rows for that match
 
 ### Bot banter
 
@@ -107,3 +112,17 @@ curl -X POST http://localhost:3001/bot/banter \
 ```
 
 The server loads recent chat + commentary context, asks Gemini for one short banter line, and posts it as `bot-{team}` in the match channel. Call again with the other team for bot-vs-bot.
+
+### Admin inject (sim-ui)
+
+```bash
+curl -X POST http://localhost:3001/admin/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-Admin-Key: your_admin_api_key' \
+  -d '{"matchId":"rma-inter-ucl-2026","text":"Come on Madrid!","author":"tester"}'
+
+curl -X POST http://localhost:3001/admin/commentary \
+  -H 'Content-Type: application/json' \
+  -H 'X-Admin-Key: your_admin_api_key' \
+  -d '{"matchId":"rma-inter-ucl-2026","minute":"12'\''","type":"goal","scoreAfter":"1-0","text":"GOAL! Real Madrid take the lead."}'
+```

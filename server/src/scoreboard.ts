@@ -1,7 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
+import { listMatchCommentary } from './commentary-store.js';
 import { getMatch, type MatchRecord } from './matches.js';
 import {
   getActiveSimMatchMinute,
@@ -21,35 +18,6 @@ export type MatchScoreboard = {
 };
 
 const GOAL_SCORE_RE = /^Goal!\s+(.+?)\s+(\d+),\s+(.+?)\s+(\d+)\./i;
-
-type StubCommentaryEvent = {
-  type?: string;
-  team?: string;
-  score_after?: string;
-  minute?: string;
-};
-
-type StubCommentaryFile = Record<
-  string,
-  {
-    commentary_timeline?: StubCommentaryEvent[];
-  }
->;
-
-const stubCommentaryPath = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '../data/commentary.json',
-);
-
-function emptyScores(match: MatchRecord): {
-  teamA: { label: string; score: number };
-  teamB: { label: string; score: number };
-} {
-  return {
-    teamA: { label: match.teamA!.label, score: 0 },
-    teamB: { label: match.teamB!.label, score: 0 },
-  };
-}
 
 function applyNamedScoreline(
   text: string,
@@ -103,37 +71,27 @@ function parseScoreAfter(
   return { home: Number(match[1]), away: Number(match[2]) };
 }
 
-function scoreFromStubCommentary(match: MatchRecord): {
+async function scoreFromSupabaseCommentary(match: MatchRecord): Promise<{
   scoreA: number;
   scoreB: number;
-} {
-  try {
-    const raw = readFileSync(stubCommentaryPath, 'utf8');
-    const data = JSON.parse(raw) as StubCommentaryFile;
-    const timeline = data[match.id]?.commentary_timeline ?? [];
-    let scoreA = 0;
-    let scoreB = 0;
+}> {
+  const rows = await listMatchCommentary(match.id);
+  let scoreA = 0;
+  let scoreB = 0;
 
-    for (const event of timeline) {
-      if (event.type !== 'goal' || !event.score_after) {
-        continue;
-      }
-      const parsed = parseScoreAfter(event.score_after);
-      if (!parsed) {
-        continue;
-      }
-      // Stub files treat score_after as teamA-teamB for the match's home/away order.
-      scoreA = parsed.home;
-      scoreB = parsed.away;
+  for (const row of rows) {
+    if (row.type !== 'goal' || !row.scoreAfter) {
+      continue;
     }
-
-    return { scoreA, scoreB };
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { scoreA: 0, scoreB: 0 };
+    const parsed = parseScoreAfter(row.scoreAfter);
+    if (!parsed) {
+      continue;
     }
-    throw error;
+    scoreA = parsed.home;
+    scoreB = parsed.away;
   }
+
+  return { scoreA, scoreB };
 }
 
 function formatClock(matchMinute: number, state: MatchScoreboard['state']): string {
@@ -165,17 +123,9 @@ export async function getMatchScoreboard(
         state: status.state,
       };
     }
-
-    return {
-      matchId,
-      ...emptyScores(match),
-      clockLabel: '—',
-      matchMinute: null,
-      state: 'idle',
-    };
   }
 
-  const { scoreA, scoreB } = scoreFromStubCommentary(match);
+  const { scoreA, scoreB } = await scoreFromSupabaseCommentary(match);
   return {
     matchId,
     teamA: { label: match.teamA.label, score: scoreA },

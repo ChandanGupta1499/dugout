@@ -51,11 +51,48 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   font: inherit;
   padding: 0.45rem 0.55rem;
   border: 1px solid #9aab8e;
   background: #fff;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 4rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: #5c6754;
+}
+
+.hint code {
+  font-size: 0.8rem;
+}
+
+button.secondary {
+  background: #f7faf5;
+  color: #2f3b28;
+}
+
+.ok {
+  color: #1e5c2e;
+  margin: 0.75rem 0 0;
+}
+
+.commentary-list {
+  margin-top: 1rem;
+  max-height: 240px;
 }
 
 .actions {

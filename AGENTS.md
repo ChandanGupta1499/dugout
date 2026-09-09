@@ -25,6 +25,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 - Match chat is one Stream messaging channel per match when `channelId` is set; clients connect as guests via server-minted tokens.
 - App routes use `/match/[matchId]` and `/match/[matchId]/chat`; starter Home/Explore tab UI was removed.
 - Match chat screen includes manual per-team bot-banter buttons that call `POST /bot/banter`.
-- Bot banter uses Gemini on the server with a team identity (`bot-{team}`), recent Stream chat, and commentary (stub `data/commentary.json`, or time-filtered `data/sim/commentary.json` when a sim is active).
+- Bot banter uses Gemini on the server with a team identity (`bot-{team}`), recent Stream chat, and commentary (Supabase `match_commentary`, or time-filtered `data/sim/commentary.json` when a sim is active; empty if neither).
+- sim-ui can list matches and inject shared Stream chat + Supabase commentary via `/admin/*` (`ADMIN_API_KEY` / `X-Admin-Key`).
 - Chat history is stored in Stream (not a local DB); older messages are retrieved via Stream APIs/SDK.
 - Client API base is `EXPO_PUBLIC_API_URL` (default `http://localhost:3001`); Android emulator must use `10.0.2.2` instead of `localhost`; shared builds point at the hosted Render URL.
