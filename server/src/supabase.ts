@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -21,6 +22,8 @@ export function getSupabase(): SupabaseClient {
           persistSession: false,
           autoRefreshToken: false,
         },
+        // Node < 22 has no global WebSocket; supabase-js still inits realtime on createClient.
+        realtime: { transport: ws as unknown as typeof WebSocket },
       },
     );
   }
