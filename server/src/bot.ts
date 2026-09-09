@@ -17,7 +17,7 @@ export async function postTeamBanter(matchId: string, teamInput: string) {
     throw new Error('team is required');
   }
 
-  const match = requireMatch(matchId);
+  const match = await requireMatch(matchId);
   assertTeamForMatch(match, team);
 
   const opponent = [match.teamA, match.teamB]

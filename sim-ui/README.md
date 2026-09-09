@@ -20,4 +20,4 @@ Open the Vite URL (usually `http://localhost:5173`). API base defaults to `http:
 - Set **kickoff offset (ms)** to the YouTube `videoOffsetTimeMsec` where match minute `0'` begins
 - Speed: `1x` / `2x` / `3x` / `5x` / `10x`
 - Data lives in `server/data/sim/`; regenerate with `npm --prefix server run normalize-sim`
-- Progress persists in `server/data/sim/session.json`. After a backend restart the sim restores as **paused** at the last cursor/elapsed time — hit **Resume**. **Stop** clears the file.
+- Progress persists in Supabase `sim_sessions`. After a backend restart the sim restores as **paused** at the last cursor/elapsed time — hit **Resume**. **Stop** clears the row.

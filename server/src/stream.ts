@@ -1,6 +1,9 @@
 import { StreamChat } from 'stream-chat';
 
-import { requireMatch, type MatchRecord } from './matches.js';
+import {
+  requireMatchWithChannel,
+  type MatchRecord,
+} from './matches.js';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -32,8 +35,9 @@ export async function upsertGuestUser(userId: string, name: string) {
   return stream.createToken(userId);
 }
 
-export function matchChannelId(matchId: string): string {
-  return requireMatch(matchId).channelId;
+export async function matchChannelId(matchId: string): Promise<string> {
+  const match = await requireMatchWithChannel(matchId);
+  return match.channelId;
 }
 
 function channelMeta(match: MatchRecord) {
@@ -44,7 +48,7 @@ function channelMeta(match: MatchRecord) {
 }
 
 export async function ensureMatchChannel(matchId: string, userId: string) {
-  const match = requireMatch(matchId);
+  const match = await requireMatchWithChannel(matchId);
   const stream = getStreamClient();
   const channel = stream.channel(match.channelType, match.channelId, {
     ...channelMeta(match),
@@ -88,7 +92,7 @@ export async function queryRecentMessages(
   matchId: string,
   limit = 20,
 ): Promise<ChatMessageLine[]> {
-  const match = requireMatch(matchId);
+  const match = await requireMatchWithChannel(matchId);
   const stream = getStreamClient();
   const channel = stream.channel(match.channelType, match.channelId);
 
@@ -136,7 +140,7 @@ export async function sendBotMessage(
   botUserId: string,
   text: string,
 ) {
-  const match = requireMatch(matchId);
+  const match = await requireMatchWithChannel(matchId);
   const stream = getStreamClient();
   const channel = stream.channel(match.channelType, match.channelId, {
     ...channelMeta(match),

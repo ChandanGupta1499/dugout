@@ -8,7 +8,8 @@ export type Match = {
   title: string;
   subtitle: string;
   channelType: 'messaging';
-  channelId: string;
+  /** Stream messaging channel id; null when chat is not set up yet. */
+  channelId: string | null;
   teamA?: MatchTeam;
   teamB?: MatchTeam;
 };

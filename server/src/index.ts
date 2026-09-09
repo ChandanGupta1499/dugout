@@ -5,7 +5,8 @@ import express from 'express';
 import { postTeamBanter } from './bot.js';
 import { getMatch, listMatches } from './matches.js';
 import { getMatchScoreboard } from './scoreboard.js';
-import { simRouter } from './sim/index.js';
+import { initSimFromStore, simRouter } from './sim/index.js';
+import { assertSupabaseConfigured } from './supabase.js';
 import {
   ensureMatchChannel,
   getApiKey,
@@ -35,31 +36,46 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/matches', (_req, res) => {
-  res.json(listMatches());
+app.get('/matches', async (_req, res) => {
+  try {
+    res.json(await listMatches());
+  } catch (error) {
+    console.error('GET /matches failed', error);
+    res.status(500).json({ error: 'Failed to load matches' });
+  }
 });
 
-app.get('/matches/:matchId', (req, res) => {
-  const match = getMatch(req.params.matchId);
-  if (!match) {
-    res.status(404).json({ error: 'Match not found' });
-    return;
+app.get('/matches/:matchId', async (req, res) => {
+  try {
+    const match = await getMatch(req.params.matchId);
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+    res.json(match);
+  } catch (error) {
+    console.error('GET /matches/:matchId failed', error);
+    res.status(500).json({ error: 'Failed to load match' });
   }
-  res.json(match);
 });
 
-app.get('/matches/:matchId/scoreboard', (req, res) => {
-  const match = getMatch(req.params.matchId);
-  if (!match) {
-    res.status(404).json({ error: 'Match not found' });
-    return;
+app.get('/matches/:matchId/scoreboard', async (req, res) => {
+  try {
+    const match = await getMatch(req.params.matchId);
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+    const scoreboard = await getMatchScoreboard(req.params.matchId);
+    if (!scoreboard) {
+      res.status(404).json({ error: 'Scoreboard not available for this match' });
+      return;
+    }
+    res.json(scoreboard);
+  } catch (error) {
+    console.error('GET /matches/:matchId/scoreboard failed', error);
+    res.status(500).json({ error: 'Failed to load scoreboard' });
   }
-  const scoreboard = getMatchScoreboard(req.params.matchId);
-  if (!scoreboard) {
-    res.status(404).json({ error: 'Scoreboard not available for this match' });
-    return;
-  }
-  res.json(scoreboard);
 });
 
 app.post('/token', async (req, res) => {
@@ -103,14 +119,26 @@ app.post('/channels/match', async (req, res) => {
       return;
     }
 
-    if (!getMatch(matchId.trim())) {
+    const match = await getMatch(matchId.trim());
+    if (!match) {
       res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+    if (!match.channelId) {
+      res.status(400).json({
+        error: `Match "${match.id}" has no Stream channel id; chat is not available yet`,
+      });
       return;
     }
 
     const channel = await ensureMatchChannel(matchId.trim(), userId.trim());
     res.json(channel);
   } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('has no Stream channel id')) {
+      res.status(400).json({ error: message });
+      return;
+    }
     console.error('POST /channels/match failed', error);
     res.status(500).json({ error: 'Failed to ensure match channel' });
   }
@@ -129,8 +157,15 @@ app.post('/bot/banter', async (req, res) => {
       return;
     }
 
-    if (!getMatch(matchId.trim())) {
+    const match = await getMatch(matchId.trim());
+    if (!match) {
       res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+    if (!match.channelId) {
+      res.status(400).json({
+        error: `Match "${match.id}" has no Stream channel id; chat is not available yet`,
+      });
       return;
     }
 
@@ -138,7 +173,10 @@ app.post('/bot/banter', async (req, res) => {
     res.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
-    if (message.includes('is not part of match')) {
+    if (
+      message.includes('is not part of match') ||
+      message.includes('has no Stream channel id')
+    ) {
       res.status(400).json({ error: message });
       return;
     }
@@ -147,16 +185,26 @@ app.post('/bot/banter', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`dugout server listening on http://localhost:${port}`);
-  if (!process.env.STREAM_API_KEY || !process.env.STREAM_API_SECRET) {
-    console.warn(
-      'Warning: STREAM_API_KEY / STREAM_API_SECRET are not set. Copy server/.env.example to server/.env before using /token or /channels/match.',
-    );
-  }
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn(
-      'Warning: GEMINI_API_KEY is not set. Copy server/.env.example to server/.env before using /bot/banter.',
-    );
-  }
+async function main() {
+  assertSupabaseConfigured();
+  await initSimFromStore();
+
+  app.listen(port, () => {
+    console.log(`dugout server listening on http://localhost:${port}`);
+    if (!process.env.STREAM_API_KEY || !process.env.STREAM_API_SECRET) {
+      console.warn(
+        'Warning: STREAM_API_KEY / STREAM_API_SECRET are not set. Copy server/.env.example to server/.env before using /token or /channels/match.',
+      );
+    }
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn(
+        'Warning: GEMINI_API_KEY is not set. Copy server/.env.example to server/.env before using /bot/banter.',
+      );
+    }
+  });
+}
+
+main().catch((error) => {
+  console.error('Failed to start dugout server', error);
+  process.exit(1);
 });

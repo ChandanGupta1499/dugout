@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { requireMatch } from '../matches.js';
+import { requireMatchWithChannel } from '../matches.js';
 import { getStreamClient } from '../stream.js';
 
 function shortHash(input: string): string {
@@ -15,7 +15,7 @@ const upserted = new Set<string>();
 const ensuredChannels = new Set<string>();
 
 async function ensureChannel(matchId: string, userId: string) {
-  const match = requireMatch(matchId);
+  const match = await requireMatchWithChannel(matchId);
   const key = `${match.channelType}:${match.channelId}`;
   const stream = getStreamClient();
   const channel = stream.channel(match.channelType, match.channelId, {

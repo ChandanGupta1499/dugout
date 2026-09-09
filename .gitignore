@@ -36,9 +36,6 @@ yarn-error.*
 !.env.example
 .env*.local
 
-# sim harness runtime state
-server/data/sim/session.json
-
 # worktrees
 .worktrees/
 

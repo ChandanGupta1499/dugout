@@ -66,11 +66,17 @@ export default function MatchScreen() {
             <Text style={styles.title}>{title}</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
 
-            <Link href={`/match/${matchId}/chat`} asChild>
-              <Pressable style={styles.button}>
-                <Text style={styles.buttonLabel}>Open chat</Text>
-              </Pressable>
-            </Link>
+            {match?.channelId ? (
+              <Link href={`/match/${matchId}/chat`} asChild>
+                <Pressable style={styles.button}>
+                  <Text style={styles.buttonLabel}>Open chat</Text>
+                </Pressable>
+              </Link>
+            ) : (
+              <Text style={styles.chatUnavailable}>
+                Chat isn’t set up for this match yet.
+              </Text>
+            )}
           </View>
         )}
       </SafeAreaView>
@@ -104,6 +110,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#555',
     marginBottom: 12,
+  },
+  chatUnavailable: {
+    fontSize: 15,
+    color: '#666',
   },
   message: {
     fontSize: 16,

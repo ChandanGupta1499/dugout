@@ -14,7 +14,7 @@ import {
 
 const TICK_MS = 250;
 const MAX_SENDS_PER_TICK = 3;
-const PERSIST_EVERY_MS = 1_000;
+const PERSIST_EVERY_MS = 5_000;
 
 export type PublicSimStatus = {
   state: SimState;
@@ -43,9 +43,11 @@ type Session = {
   timer: ReturnType<typeof setInterval> | null;
   sending: boolean;
   lastPersistedAt: number;
+  persisting: boolean;
 };
 
 let session: Session | null = null;
+let restorePromise: Promise<void> | null = null;
 
 function emptyStatus(): PublicSimStatus {
   return {
@@ -99,16 +101,23 @@ function persistSession(s: Session, force = false): void {
   if (!force && now - s.lastPersistedAt < PERSIST_EVERY_MS) {
     return;
   }
-  try {
-    savePersistedSimSession(toPersisted(s));
-    s.lastPersistedAt = now;
-  } catch (error) {
-    console.error('[sim] failed to persist session', error);
+  if (s.persisting) {
+    return;
   }
+  s.persisting = true;
+  s.lastPersistedAt = now;
+  const snapshot = toPersisted(s);
+  void savePersistedSimSession(snapshot)
+    .catch((error) => {
+      console.error('[sim] failed to persist session', error);
+    })
+    .finally(() => {
+      s.persisting = false;
+    });
 }
 
-function restoreSessionFromDisk(): void {
-  const saved = loadPersistedSimSession();
+async function restoreSessionFromStore(): Promise<void> {
+  const saved = await loadPersistedSimSession();
   if (!saved) {
     return;
   }
@@ -132,11 +141,22 @@ function restoreSessionFromDisk(): void {
     timer: null,
     sending: false,
     lastPersistedAt: Date.now(),
+    persisting: false,
   };
 
   console.log(
     `[sim] restored ${saved.state} session at ${Math.round(saved.accumulatedMs / 1000)}s (cursor ${saved.cursor})`,
   );
+}
+
+/** Load paused/finished sim from Supabase before accepting traffic. */
+export function initSimFromStore(): Promise<void> {
+  if (!restorePromise) {
+    restorePromise = restoreSessionFromStore().catch((error) => {
+      console.error('[sim] failed to restore session from Supabase', error);
+    });
+  }
+  return restorePromise;
 }
 
 export function getSessionStatus(): PublicSimStatus {
@@ -262,6 +282,7 @@ export function startSim(options: {
     timer: null,
     sending: false,
     lastPersistedAt: 0,
+    persisting: false,
   };
 
   persistSession(session, true);
@@ -321,12 +342,8 @@ export function stopSim() {
     clearTimer(session);
   }
   session = null;
-  try {
-    clearPersistedSimSession();
-  } catch (error) {
-    console.error('[sim] failed to clear session.json', error);
-  }
+  void clearPersistedSimSession().catch((error) => {
+    console.error('[sim] failed to clear sim session', error);
+  });
   return getSessionStatus();
 }
-
-restoreSessionFromDisk();

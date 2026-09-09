@@ -65,6 +65,9 @@ export default function MatchesScreen() {
               <Pressable style={styles.row}>
                 <Text style={styles.title}>{item.title}</Text>
                 <Text style={styles.subtitle}>{item.subtitle}</Text>
+                {!item.channelId ? (
+                  <Text style={styles.chatSoon}>Chat coming soon</Text>
+                ) : null}
               </Pressable>
             </Link>
           )}
@@ -118,6 +121,11 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: '#666',
+  },
+  chatSoon: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
   },
   centered: {
     flex: 1,

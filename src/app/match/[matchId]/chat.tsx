@@ -1,16 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { useHeaderHeight } from 'expo-router/react-navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Channel,
-  MessageComposer,
-  MessageList,
-  useChatContext,
-} from 'stream-chat-expo';
-import type { Channel as StreamChannel } from 'stream-chat';
+  ActivityIndicator,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useChatContext } from 'stream-chat-expo';
+import type { Channel as StreamChannel, LocalMessage } from 'stream-chat';
 
-import { MatchScoreboardBar } from '@/components/match-scoreboard-bar';
+import { BotBanterBar } from '@/components/dugout/BotBanterBar';
+import { ChatBubble, type ChatBubbleKind } from '@/components/dugout/ChatBubble';
+import { ChatHeader } from '@/components/dugout/ChatHeader';
+import { Composer } from '@/components/dugout/Composer';
+import { ScoreStrip } from '@/components/dugout/ScoreStrip';
 import {
   ensureMatchChannel,
   fetchMatch,
@@ -19,17 +27,25 @@ import {
   type MatchScoreboard,
 } from '@/lib/api';
 import type { Match, MatchTeam } from '@/lib/matches';
+import { semantic, spacing } from '@/theme/tokens';
 import { useGuest } from '@/providers/chat-provider';
+
+function classifyMessage(message: LocalMessage, guestId: string): ChatBubbleKind {
+  const userId = message.user?.id ?? '';
+  if (userId === guestId) return 'own';
+  if (userId.startsWith('bot-')) return 'bot';
+  return 'member';
+}
 
 export default function MatchChatScreen() {
   const { matchId } = useLocalSearchParams<{ matchId: string }>();
   const guest = useGuest();
   const { client } = useChatContext();
-  const headerHeight = useHeaderHeight();
-  const headerHeightRef = useRef(headerHeight);
 
   const [match, setMatch] = useState<Match | null>(null);
   const [channel, setChannel] = useState<StreamChannel | null>(null);
+  const [messages, setMessages] = useState<LocalMessage[]>([]);
+  const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [pendingTeam, setPendingTeam] = useState<string | null>(null);
@@ -47,10 +63,16 @@ export default function MatchChatScreen() {
     setError(null);
     setChannel(null);
     setMatch(null);
+    setMessages([]);
 
     try {
       const nextMatch = await fetchMatch(matchId);
       setMatch(nextMatch);
+
+      if (!nextMatch.channelId) {
+        setError('Chat isn’t set up for this match yet.');
+        return;
+      }
 
       const { channelType, channelId } = await ensureMatchChannel(
         matchId,
@@ -59,6 +81,7 @@ export default function MatchChatScreen() {
       const nextChannel = client.channel(channelType, channelId);
       await nextChannel.watch();
       setChannel(nextChannel);
+      setMessages([...nextChannel.state.messages]);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to join chat';
       setError(message);
@@ -68,6 +91,21 @@ export default function MatchChatScreen() {
   useEffect(() => {
     void joinChannel();
   }, [joinChannel, retryCount]);
+
+  useEffect(() => {
+    if (!channel) return;
+
+    const sync = () => setMessages([...channel.state.messages]);
+    const listeners = [
+      channel.on('message.new', sync),
+      channel.on('message.updated', sync),
+      channel.on('message.deleted', sync),
+    ];
+
+    return () => {
+      listeners.forEach((listener) => listener.unsubscribe());
+    };
+  }, [channel]);
 
   useEffect(() => {
     if (!matchId || !match?.teamA || !match?.teamB) {
@@ -122,11 +160,26 @@ export default function MatchChatScreen() {
     [matchId, pendingTeam],
   );
 
+  const sendMessage = useCallback(async () => {
+    const text = draft.trim();
+    if (!text || !channel) return;
+
+    setDraft('');
+    try {
+      await channel.sendMessage({ text });
+    } catch (err) {
+      console.warn('Send message failed', err);
+      setDraft(text);
+    }
+  }, [channel, draft]);
+
+  const orderedMessages = useMemo(() => [...messages].reverse(), [messages]);
+
   if (error) {
     return (
       <>
-        <Stack.Screen options={{ title: match?.title ?? 'Chat' }} />
-        <View style={styles.centered}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <SafeAreaView style={styles.centered} edges={['top', 'bottom']}>
           <Text style={styles.message}>Could not open match chat.</Text>
           <Text style={styles.detail}>{error}</Text>
           <Pressable
@@ -134,7 +187,7 @@ export default function MatchChatScreen() {
             onPress={() => setRetryCount((count) => count + 1)}>
             <Text style={styles.retryButtonLabel}>Retry</Text>
           </Pressable>
-        </View>
+        </SafeAreaView>
       </>
     );
   }
@@ -142,131 +195,115 @@ export default function MatchChatScreen() {
   if (!channel) {
     return (
       <>
-        <Stack.Screen options={{ title: match?.title ?? 'Chat' }} />
-        <View style={styles.centered}>
-          <ActivityIndicator />
+        <Stack.Screen options={{ headerShown: false }} />
+        <SafeAreaView style={styles.centered} edges={['top', 'bottom']}>
+          <ActivityIndicator color={semantic.textBrand} />
           <Text style={styles.message}>Joining match chat…</Text>
-        </View>
+        </SafeAreaView>
       </>
     );
   }
 
   return (
     <>
-      <Stack.Screen options={{ title: match?.title ?? 'Chat' }} />
-      <Channel
-        channel={channel}
-        keyboardVerticalOffset={headerHeightRef.current}
-        topInset={headerHeightRef.current}>
-        {scoreboard ? <MatchScoreboardBar scoreboard={scoreboard} /> : null}
-        <MessageList />
-        {hasBotTeams && match?.teamA && match?.teamB ? (
-          <View style={styles.botBar}>
-            <Pressable
-              style={[
-                styles.botButton,
-                pendingTeam !== null && styles.botButtonDisabled,
-              ]}
-              disabled={pendingTeam !== null}
-              onPress={() => void triggerBanter(match.teamA!)}>
-              {pendingTeam === match.teamA.slug ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.botButtonLabel}>
-                  {match.teamA.label} Fan
-                </Text>
-              )}
-            </Pressable>
-            <Pressable
-              style={[
-                styles.botButton,
-                pendingTeam !== null && styles.botButtonDisabled,
-              ]}
-              disabled={pendingTeam !== null}
-              onPress={() => void triggerBanter(match.teamB!)}>
-              {pendingTeam === match.teamB.slug ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.botButtonLabel}>
-                  {match.teamB.label} Fan
-                </Text>
-              )}
-            </Pressable>
-            {banterError ? (
-              <Text style={styles.banterError} numberOfLines={2}>
-                {banterError}
-              </Text>
-            ) : null}
+      <Stack.Screen options={{ headerShown: false }} />
+      <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ChatHeader
+            title={match?.title ?? 'Chat'}
+            meta={scoreboard ? scoreboard.clockLabel : undefined}
+            onBack={() => router.back()}
+          />
+          {scoreboard ? (
+            <View style={styles.scoreStripWrap}>
+              <ScoreStrip scoreboard={scoreboard} />
+            </View>
+          ) : null}
+          <FlatList
+            inverted
+            data={orderedMessages}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.feed}
+            renderItem={({ item }) => (
+              <ChatBubble
+                kind={classifyMessage(item, guest.userId)}
+                author={
+                  classifyMessage(item, guest.userId) === 'own'
+                    ? undefined
+                    : item.user?.name ?? item.user?.id
+                }>
+                {item.text ?? ''}
+              </ChatBubble>
+            )}
+          />
+          {hasBotTeams && match?.teamA && match?.teamB ? (
+            <BotBanterBar
+              teamA={match.teamA}
+              teamB={match.teamB}
+              pendingTeam={pendingTeam}
+              error={banterError}
+              onTrigger={(team) => void triggerBanter(team)}
+            />
+          ) : null}
+          <View style={styles.composerWrap}>
+            <Composer value={draft} onChangeText={setDraft} onSend={() => void sendMessage()} />
           </View>
-        ) : null}
-        <MessageComposer />
-      </Channel>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+    backgroundColor: semantic.surfacePage,
+  },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
     gap: 12,
-    backgroundColor: '#fff',
+    backgroundColor: semantic.surfacePage,
   },
   message: {
     fontSize: 16,
     textAlign: 'center',
+    color: semantic.textDisplay,
   },
   detail: {
     fontSize: 13,
-    color: '#666',
+    color: semantic.textMuted,
     textAlign: 'center',
   },
   retryButton: {
     marginTop: 8,
-    backgroundColor: '#111',
+    backgroundColor: semantic.surfaceBrand,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
   },
   retryButtonLabel: {
-    color: '#fff',
+    color: semantic.textOnBrand,
     fontWeight: '600',
   },
-  botBar: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#ddd',
-    backgroundColor: '#fafafa',
+  scoreStripWrap: {
+    paddingHorizontal: spacing.gutterScreen,
+    paddingTop: spacing.s5,
   },
-  botButton: {
+  feed: {
     flexGrow: 1,
-    flexBasis: '40%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 40,
-    backgroundColor: '#111',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
+    gap: spacing.gapSection,
+    paddingHorizontal: spacing.gutterScreen,
+    paddingVertical: spacing.s5,
   },
-  botButtonDisabled: {
-    opacity: 0.5,
-  },
-  botButtonLabel: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  banterError: {
-    width: '100%',
-    fontSize: 12,
-    color: '#b00020',
+  composerWrap: {
+    paddingHorizontal: spacing.gutterScreen,
+    paddingVertical: spacing.s5,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: semantic.lineHairline,
   },
 });

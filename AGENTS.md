@@ -16,12 +16,13 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 
 - Dugout is an Expo SDK 57 app using `stream-chat-expo` for live match chat.
 - Express API lives in `server/` with `GET /matches`, `POST /token`, `POST /channels/match`, `POST /bot/banter`, `GET /health`, and sim routes under `/sim/*` (typically port 3001).
-- Match fixtures (title, Stream `channelId`, teams) live in `server/data/matches.json`; clients load them via `GET /matches`.
+- Match list and optional Stream `channelId` live in Supabase `matches` (service role on the server); clients load via `GET /matches`. Matches with null `channelId` still appear in the UI; chat/bot/channel routes return 400 until set.
+- Server requires `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`; SQL migrations under `server/supabase/migrations/`.
 - Fake match replay is isolated: `server/src/sim/`, `server/data/sim/`, and Vite admin `sim-ui/` (`npm run sim-ui`); bot banter stays on Expo chat UI.
-- Sim progress persists in `server/data/sim/session.json`; backend restart restores as paused (Resume to continue); Stop clears it.
+- Sim progress persists in Supabase `sim_sessions` (in-memory clock + throttled write-through); backend restart restores as paused (Resume to continue); Stop clears the row.
 - Match `eng-arg-semi-2026` is the sim fixture (England vs Argentina); normalized chat/commentary in `server/data/sim/`.
 - Deploy to Render via `server/render.yaml` (Blueprint path `server/render.yaml`); see `server/README.md` for onboarding.
-- Match chat is one Stream messaging channel per match (`channelId` from JSON); clients connect as guests via server-minted tokens.
+- Match chat is one Stream messaging channel per match when `channelId` is set; clients connect as guests via server-minted tokens.
 - App routes use `/match/[matchId]` and `/match/[matchId]/chat`; starter Home/Explore tab UI was removed.
 - Match chat screen includes manual per-team bot-banter buttons that call `POST /bot/banter`.
 - Bot banter uses Gemini on the server with a team identity (`bot-{team}`), recent Stream chat, and commentary (stub `data/commentary.json`, or time-filtered `data/sim/commentary.json` when a sim is active).

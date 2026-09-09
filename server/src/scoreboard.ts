@@ -143,8 +143,10 @@ function formatClock(matchMinute: number, state: MatchScoreboard['state']): stri
   return `${Math.floor(matchMinute)}'`;
 }
 
-export function getMatchScoreboard(matchId: string): MatchScoreboard | null {
-  const match = getMatch(matchId);
+export async function getMatchScoreboard(
+  matchId: string,
+): Promise<MatchScoreboard | null> {
+  const match = await getMatch(matchId);
   if (!match?.teamA || !match?.teamB) {
     return null;
   }
