@@ -57,6 +57,10 @@ export const semantic = {
   lineBrand: colors.red200,
 
   statusLive: colors.red600,
+  // colors.green600 @ 12% — mirrors surfaceTint's role for the brand red, but
+  // there's no precomputed green50/green100 tint in `colors` to reference.
+  surfaceSuccess: 'rgba(18, 133, 90, 0.12)',
+  textSuccess: colors.green600,
 } as const;
 
 export const spacing = {
