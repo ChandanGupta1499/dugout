@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Keyboard,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
@@ -19,20 +19,23 @@ import { BotBanterBar } from '@/components/dugout/BotBanterBar';
 import { ChatBubble, type ChatBubbleKind } from '@/components/dugout/ChatBubble';
 import { ChatHeader } from '@/components/dugout/ChatHeader';
 import { Composer } from '@/components/dugout/Composer';
+import { MediaSheet } from '@/components/dugout/MediaSheet';
+import { QuizSheet } from '@/components/dugout/QuizSheet';
 import { ScoreStrip } from '@/components/dugout/ScoreStrip';
 import {
   ensureMatchChannel,
   fetchMatch,
   fetchScoreboard,
   requestBotBanter,
+  type GiphyItem,
+  type GiphyKind,
   type MatchScoreboard,
 } from '@/lib/api';
 import type { Match, MatchTeam } from '@/lib/matches';
-import { semantic, spacing } from '@/theme/tokens';
+import { MOCK_QUIZ_QUESTION } from '@/lib/quiz-mock';
+import { isReactionType, type ReactionType } from '@/lib/reactions';
+import { fonts, semantic, spacing } from '@/theme/tokens';
 import { useGuest } from '@/providers/chat-provider';
-
-/** Android edge-to-edge often under-reports IME height by ~1 gesture inset chunk. */
-const ANDROID_KEYBOARD_EXTRA = 16;
 
 function classifyMessage(message: LocalMessage, guestId: string): ChatBubbleKind {
   const userId = message.user?.id ?? '';
@@ -40,6 +43,82 @@ function classifyMessage(message: LocalMessage, guestId: string): ChatBubbleKind
   if (userId.startsWith('bot-')) return 'bot';
   return 'member';
 }
+
+function messageImageUrl(message: LocalMessage): string | undefined {
+  const attachment = message.attachments?.[0];
+  if (!attachment) return undefined;
+  const record = attachment as Record<string, unknown>;
+  const candidates = [
+    attachment.image_url,
+    attachment.thumb_url,
+    attachment.asset_url,
+    typeof record.imageUrl === 'string' ? record.imageUrl : undefined,
+    typeof record.gif_url === 'string' ? record.gif_url : undefined,
+  ];
+  for (const value of candidates) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+function ownReactionTypes(message: LocalMessage): string[] {
+  const own = message.own_reactions ?? [];
+  return own
+    .map((reaction) => reaction.type)
+    .filter((type): type is string => typeof type === 'string');
+}
+
+type ChatMessageRowProps = {
+  item: LocalMessage;
+  guestId: string;
+  showReactionPicker: boolean;
+  onToggleReaction: (messageId: string, type: ReactionType) => void;
+  onLongPress: (messageId: string) => void;
+};
+
+const ChatMessageRow = memo(function ChatMessageRow({
+  item,
+  guestId,
+  showReactionPicker,
+  onToggleReaction,
+  onLongPress,
+}: ChatMessageRowProps) {
+  const kind = classifyMessage(item, guestId);
+  const counts = item.reaction_counts ?? {};
+  const filteredCounts: Record<string, number> = {};
+  for (const [type, count] of Object.entries(counts)) {
+    if (isReactionType(type) && typeof count === 'number' && count > 0) {
+      filteredCounts[type] = count;
+    }
+  }
+
+  const handleLongPress = useCallback(() => {
+    onLongPress(item.id);
+  }, [item.id, onLongPress]);
+
+  const handleToggleReaction = useCallback(
+    (type: ReactionType) => {
+      onToggleReaction(item.id, type);
+    },
+    [item.id, onToggleReaction],
+  );
+
+  return (
+    <ChatBubble
+      kind={kind}
+      author={kind === 'own' ? undefined : item.user?.name ?? item.user?.id}
+      imageUrl={messageImageUrl(item)}
+      reactionCounts={filteredCounts}
+      ownReactions={ownReactionTypes(item)}
+      showReactionPicker={showReactionPicker}
+      onLongPress={handleLongPress}
+      onToggleReaction={handleToggleReaction}>
+      {item.text ?? ''}
+    </ChatBubble>
+  );
+});
 
 export default function MatchChatScreen() {
   const { matchId } = useLocalSearchParams<{ matchId: string }>();
@@ -56,32 +135,20 @@ export default function MatchChatScreen() {
   const [pendingTeam, setPendingTeam] = useState<string | null>(null);
   const [banterError, setBanterError] = useState<string | null>(null);
   const [scoreboard, setScoreboard] = useState<MatchScoreboard | null>(null);
+  const [reactionTargetId, setReactionTargetId] = useState<string | null>(null);
+  const [mediaOpen, setMediaOpen] = useState(false);
+  const [quizOpen, setQuizOpen] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const hasBotTeams = Boolean(match?.teamA && match?.teamB);
+  const keyboardOpen = keyboardHeight > 0;
 
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+  const syncMessages = useCallback((active: StreamChannel) => {
+    setMessages([...active.state.messages]);
+  }, []);
 
-    const resolveOverlap = (event: { endCoordinates: { height: number; screenY: number } }) => {
-      const windowHeight = Dimensions.get('window').height;
-      const fromScreenY = Math.max(0, windowHeight - event.endCoordinates.screenY);
-      const overlap = Math.max(event.endCoordinates.height, fromScreenY);
-      return overlap + (Platform.OS === 'android' ? ANDROID_KEYBOARD_EXTRA : 0);
-    };
-
-    const onShow = Keyboard.addListener(showEvent, (event) => {
-      setKeyboardHeight(resolveOverlap(event));
-    });
-    const onHide = Keyboard.addListener(hideEvent, () => {
-      setKeyboardHeight(0);
-    });
-
-    return () => {
-      onShow.remove();
-      onHide.remove();
-    };
+  const closeMediaSheet = useCallback(() => {
+    setMediaOpen(false);
   }, []);
 
   const joinChannel = useCallback(async () => {
@@ -111,12 +178,12 @@ export default function MatchChatScreen() {
       const nextChannel = client.channel(channelType, channelId);
       await nextChannel.watch();
       setChannel(nextChannel);
-      setMessages([...nextChannel.state.messages]);
+      syncMessages(nextChannel);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to join chat';
       setError(message);
     }
-  }, [client, guest.userId, matchId]);
+  }, [client, guest.userId, matchId, syncMessages]);
 
   useEffect(() => {
     void joinChannel();
@@ -125,17 +192,36 @@ export default function MatchChatScreen() {
   useEffect(() => {
     if (!channel) return;
 
-    const sync = () => setMessages([...channel.state.messages]);
+    const sync = () => syncMessages(channel);
     const listeners = [
       channel.on('message.new', sync),
       channel.on('message.updated', sync),
       channel.on('message.deleted', sync),
+      channel.on('reaction.new', sync),
+      channel.on('reaction.deleted', sync),
     ];
 
     return () => {
       listeners.forEach((listener) => listener.unsubscribe());
     };
-  }, [channel]);
+  }, [channel, syncMessages]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (!matchId || !match?.teamA || !match?.teamB) {
@@ -195,15 +281,83 @@ export default function MatchChatScreen() {
     if (!text || !channel) return;
 
     setDraft('');
+    setMediaOpen(false);
     try {
       await channel.sendMessage({ text });
+      syncMessages(channel);
     } catch (err) {
       console.warn('Send message failed', err);
       setDraft(text);
     }
-  }, [channel, draft]);
+  }, [channel, draft, syncMessages]);
+
+  const toggleReaction = useCallback(
+    async (messageId: string, type: ReactionType) => {
+      if (!channel) return;
+
+      const message = channel.state.messages.find((item) => item.id === messageId);
+      const already =
+        message?.own_reactions?.some((reaction) => reaction.type === type) ??
+        false;
+
+      try {
+        if (already) {
+          await channel.deleteReaction(messageId, type);
+        } else {
+          await channel.sendReaction(messageId, { type });
+        }
+        syncMessages(channel);
+        setReactionTargetId(null);
+      } catch (err) {
+        console.warn('Toggle reaction failed', err);
+      }
+    },
+    [channel, syncMessages],
+  );
+
+  const handleLongPressMessage = useCallback((messageId: string) => {
+    setReactionTargetId((current) => (current === messageId ? null : messageId));
+  }, []);
+
+  const sendMedia = useCallback(
+    async (item: GiphyItem, kind: GiphyKind) => {
+      if (!channel) return;
+
+      const imageUrl = item.url?.trim() || item.previewUrl?.trim();
+      if (!imageUrl) {
+        console.warn('Send media failed: missing image url');
+        return;
+      }
+
+      try {
+        await channel.sendMessage({
+          // Stream drops completely empty messages more readily; a space keeps
+          // the attachment message valid while staying visually blank.
+          text: ' ',
+          attachments: [
+            {
+              type: 'image',
+              image_url: imageUrl,
+              thumb_url: item.previewUrl?.trim() || imageUrl,
+              asset_url: imageUrl,
+              title: item.title?.trim() || (kind === 'sticker' ? 'Sticker' : 'GIF'),
+            },
+          ],
+        });
+        syncMessages(channel);
+        setMediaOpen(false);
+      } catch (err) {
+        console.warn('Send media failed', err);
+      }
+    },
+    [channel, syncMessages],
+  );
 
   const orderedMessages = useMemo(() => [...messages].reverse(), [messages]);
+
+  const composerBottomPad = keyboardOpen
+    ? spacing.s5
+    : spacing.s5 + insets.bottom;
 
   if (error) {
     return (
@@ -234,13 +388,14 @@ export default function MatchChatScreen() {
     );
   }
 
-  const bottomInset = keyboardHeight > 0 ? keyboardHeight : insets.bottom;
-
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.flex} edges={['top']}>
-        <View style={[styles.flex, { paddingBottom: bottomInset }]}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={0}>
           <ChatHeader
             title={match?.title ?? 'Chat'}
             meta={scoreboard ? scoreboard.clockLabel : undefined}
@@ -252,22 +407,24 @@ export default function MatchChatScreen() {
             </View>
           ) : null}
           <FlatList
+            style={styles.flex}
             inverted
             data={orderedMessages}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.feed}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
+            onScrollBeginDrag={() => {
+              setReactionTargetId(null);
+            }}
             renderItem={({ item }) => (
-              <ChatBubble
-                kind={classifyMessage(item, guest.userId)}
-                author={
-                  classifyMessage(item, guest.userId) === 'own'
-                    ? undefined
-                    : item.user?.name ?? item.user?.id
-                }>
-                {item.text ?? ''}
-              </ChatBubble>
+              <ChatMessageRow
+                item={item}
+                guestId={guest.userId}
+                showReactionPicker={reactionTargetId === item.id}
+                onToggleReaction={toggleReaction}
+                onLongPress={handleLongPressMessage}
+              />
             )}
           />
           {hasBotTeams && match?.teamA && match?.teamB ? (
@@ -279,11 +436,46 @@ export default function MatchChatScreen() {
               onTrigger={(team) => void triggerBanter(team)}
             />
           ) : null}
-          <View style={styles.composerWrap}>
-            <Composer value={draft} onChangeText={setDraft} onSend={() => void sendMessage()} />
+          <View style={styles.quizTriggerRow}>
+            <Pressable
+              style={styles.quizTriggerButton}
+              onPress={() => {
+                Keyboard.dismiss();
+                setQuizOpen(true);
+              }}>
+              <Text style={styles.quizTriggerLabel}>Quiz</Text>
+            </Pressable>
           </View>
-        </View>
+          <View style={[styles.composerWrap, { paddingBottom: composerBottomPad }]}>
+            <Composer
+              value={draft}
+              onChangeText={setDraft}
+              onSend={() => void sendMessage()}
+              mediaOpen={mediaOpen}
+              onOpenMedia={() => {
+                setReactionTargetId(null);
+                if (mediaOpen) {
+                  closeMediaSheet();
+                  return;
+                }
+                Keyboard.dismiss();
+                setMediaOpen(true);
+              }}
+            />
+          </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
+      <MediaSheet
+        visible={mediaOpen}
+        onClose={closeMediaSheet}
+        onPickMedia={(item, kind) => void sendMedia(item, kind)}
+      />
+      <QuizSheet
+        visible={quizOpen}
+        question={MOCK_QUIZ_QUESTION}
+        liveLabel={scoreboard ? `LIVE · ${scoreboard.clockLabel}` : undefined}
+        onClose={() => setQuizOpen(false)}
+      />
     </>
   );
 }
@@ -334,8 +526,28 @@ const styles = StyleSheet.create({
   },
   composerWrap: {
     paddingHorizontal: spacing.gutterScreen,
-    paddingVertical: spacing.s5,
+    paddingTop: spacing.s5,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: semantic.lineHairline,
+    backgroundColor: semantic.surfacePage,
+  },
+  quizTriggerRow: {
+    paddingHorizontal: spacing.gutterScreen,
+    paddingTop: spacing.s4,
+  },
+  quizTriggerButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.s6,
+    paddingVertical: spacing.s3,
+    borderRadius: spacing.controlHSm / 2,
+    borderWidth: 1,
+    borderColor: semantic.lineBrand,
+    backgroundColor: semantic.surfaceTint,
+  },
+  quizTriggerLabel: {
+    fontFamily: fonts.button,
+    fontSize: 13,
+    color: semantic.textBrand,
+    textTransform: 'uppercase',
   },
 });
