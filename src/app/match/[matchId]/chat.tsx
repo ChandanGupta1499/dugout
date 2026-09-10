@@ -22,6 +22,7 @@ import { Composer } from '@/components/dugout/Composer';
 import { MediaSheet } from '@/components/dugout/MediaSheet';
 import { QuizSheet } from '@/components/dugout/QuizSheet';
 import { ScoreStrip } from '@/components/dugout/ScoreStrip';
+import { SpinWheelOverlay } from '@/components/dugout/SpinWheelOverlay';
 import {
   ensureMatchChannel,
   fetchMatch,
@@ -31,9 +32,11 @@ import {
   type GiphyKind,
   type MatchScoreboard,
 } from '@/lib/api';
+import { fetchActiveGame, type ActiveGame } from '@/lib/games';
 import type { Match, MatchTeam } from '@/lib/matches';
 import { MOCK_QUIZ_QUESTION } from '@/lib/quiz-mock';
 import { isReactionType, type ReactionType } from '@/lib/reactions';
+import { INITIAL_SPINS_LEFT, MOCK_SPIN_PRIZES } from '@/lib/spin-mock';
 import { semantic, spacing } from '@/theme/tokens';
 import { useGuest } from '@/providers/chat-provider';
 
@@ -137,7 +140,8 @@ export default function MatchChatScreen() {
   const [scoreboard, setScoreboard] = useState<MatchScoreboard | null>(null);
   const [reactionTargetId, setReactionTargetId] = useState<string | null>(null);
   const [mediaOpen, setMediaOpen] = useState(false);
-  const [quizOpen, setQuizOpen] = useState(false);
+  const [activeGame, setActiveGame] = useState<ActiveGame | null>(null);
+  const [loadingGame, setLoadingGame] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const hasBotTeams = Boolean(match?.teamA && match?.teamB);
@@ -451,12 +455,19 @@ export default function MatchChatScreen() {
                 Keyboard.dismiss();
                 setMediaOpen(true);
               }}
-              onOpenQuiz={() => {
+              onOpenGame={() => {
                 setReactionTargetId(null);
                 Keyboard.dismiss();
-                setQuizOpen(true);
+                if (!matchId || loadingGame) return;
+                setLoadingGame(true);
+                void fetchActiveGame(matchId)
+                  .then(setActiveGame)
+                  .catch((err) => {
+                    console.warn('Fetch active game failed', err);
+                  })
+                  .finally(() => setLoadingGame(false));
               }}
-              quizBadge
+              gameBadge
             />
           </View>
         </KeyboardAvoidingView>
@@ -467,10 +478,16 @@ export default function MatchChatScreen() {
         onPickMedia={(item, kind) => void sendMedia(item, kind)}
       />
       <QuizSheet
-        visible={quizOpen}
-        question={MOCK_QUIZ_QUESTION}
+        visible={activeGame?.type === 'quiz'}
+        question={activeGame?.type === 'quiz' ? activeGame.question : MOCK_QUIZ_QUESTION}
         liveLabel={scoreboard ? `LIVE · ${scoreboard.clockLabel}` : undefined}
-        onClose={() => setQuizOpen(false)}
+        onClose={() => setActiveGame(null)}
+      />
+      <SpinWheelOverlay
+        visible={activeGame?.type === 'spin'}
+        prizes={activeGame?.type === 'spin' ? activeGame.prizes : MOCK_SPIN_PRIZES}
+        initialSpinsLeft={activeGame?.type === 'spin' ? activeGame.spinsLeft : INITIAL_SPINS_LEFT}
+        onClose={() => setActiveGame(null)}
       />
     </>
   );
