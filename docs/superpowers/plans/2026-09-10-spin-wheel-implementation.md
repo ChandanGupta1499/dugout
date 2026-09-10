@@ -328,6 +328,18 @@ export function SpinWheelOverlay({ visible, prizes, initialSpinsLeft, onClose }:
     );
   }, [phase, spinsLeft, prizes.length, rotation, clearCountdown, handleSpinLanded]);
 
+  // startSpin's identity changes whenever the parent's onClose prop does
+  // (chat.tsx re-renders roughly once per second from scoreboard polling, so
+  // this is frequent in practice, not theoretical). Routing calls through a
+  // ref — updated every render but never itself a dependency — means the
+  // countdown effect below never needs startSpin in its dependency array, so
+  // a churning parent can never tear down and rebuild the 1s interval before
+  // it fires.
+  const startSpinRef = useRef(startSpin);
+  useEffect(() => {
+    startSpinRef.current = startSpin;
+  }, [startSpin]);
+
   // Auto-spin countdown: runs while idle with spins remaining; hitting 0 spins
   // the same way a tap on the hub would.
   useEffect(() => {
@@ -335,14 +347,14 @@ export function SpinWheelOverlay({ visible, prizes, initialSpinsLeft, onClose }:
       return;
     }
     if (countdownSec <= 0) {
-      startSpin();
+      startSpinRef.current();
       return;
     }
     countdownIntervalRef.current = setInterval(() => {
       setCountdownSec((current) => Math.max(0, current - 1));
     }, 1000);
     return clearCountdown;
-  }, [visible, phase, spinsLeft, countdownSec, startSpin, clearCountdown]);
+  }, [visible, phase, spinsLeft, countdownSec, clearCountdown]);
 
   const wheelAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotation.value}deg` }],
@@ -824,6 +836,9 @@ Replace with:
                 setLoadingGame(true);
                 void fetchActiveGame(matchId)
                   .then(setActiveGame)
+                  .catch((err) => {
+                    console.warn('Fetch active game failed', err);
+                  })
                   .finally(() => setLoadingGame(false));
               }}
               gameBadge
