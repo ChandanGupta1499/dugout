@@ -9,8 +9,8 @@ type Props = {
   onSend: () => void;
   onOpenMedia?: () => void;
   mediaOpen?: boolean;
-  onOpenQuiz?: () => void;
-  quizBadge?: boolean;
+  onOpenGame?: () => void;
+  gameBadge?: boolean;
   editable?: boolean;
 };
 
@@ -20,19 +20,19 @@ export function Composer({
   onSend,
   onOpenMedia,
   mediaOpen = false,
-  onOpenQuiz,
-  quizBadge = false,
+  onOpenGame,
+  gameBadge = false,
   editable = true,
 }: Props) {
   return (
     <View style={styles.row}>
-      {onOpenQuiz ? (
+      {onOpenGame ? (
         <Pressable
-          onPress={onOpenQuiz}
+          onPress={onOpenGame}
           disabled={!editable}
-          style={[styles.quizButton, !editable && styles.disabled]}>
+          style={[styles.gameButton, !editable && styles.disabled]}>
           <Icon name="gamepad" size={20} color={semantic.textOnBrand} />
-          {quizBadge ? <View style={styles.quizBadge} /> : null}
+          {gameBadge ? <View style={styles.gameBadge} /> : null}
         </Pressable>
       ) : null}
       <View style={styles.inputWrap}>
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     opacity: 0.5,
   },
-  quizButton: {
+  gameButton: {
     width: spacing.controlH,
     height: spacing.controlH,
     borderRadius: radius.pill,
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  quizBadge: {
+  gameBadge: {
     position: 'absolute',
     top: 2,
     right: 2,
