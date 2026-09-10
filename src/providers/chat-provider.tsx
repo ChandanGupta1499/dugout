@@ -115,6 +115,7 @@ export function ChatProvider({ children }: PropsWithChildren) {
       <View style={styles.centered}>
         <ActivityIndicator />
         <Text style={styles.message}>Starting chat…</Text>
+        <Text style={styles.detail}>Talking to the API…</Text>
       </View>
     );
   }

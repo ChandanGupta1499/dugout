@@ -1,5 +1,6 @@
 import 'react-native-gesture-handler';
 
+import { PortalProvider } from '@gorhom/portal';
 import { Archivo_900Black_Italic } from '@expo-google-fonts/archivo';
 import {
   HankenGrotesk_400Regular,
@@ -35,13 +36,15 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={styles.container}>
-        <ChatProvider>
-          <Stack>
-            <Stack.Screen name="index" options={{ title: 'Matches' }} />
-            <Stack.Screen name="match/[matchId]/index" options={{ title: 'Match' }} />
-            <Stack.Screen name="match/[matchId]/chat" options={{ headerShown: false }} />
-          </Stack>
-        </ChatProvider>
+        <PortalProvider>
+          <ChatProvider>
+            <Stack>
+              <Stack.Screen name="index" options={{ title: 'Matches' }} />
+              <Stack.Screen name="match/[matchId]/index" options={{ title: 'Match' }} />
+              <Stack.Screen name="match/[matchId]/chat" options={{ headerShown: false }} />
+            </Stack>
+          </ChatProvider>
+        </PortalProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

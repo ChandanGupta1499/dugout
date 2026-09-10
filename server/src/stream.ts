@@ -65,6 +65,27 @@ export async function ensureMatchChannel(matchId: string, userId: string) {
   };
 }
 
+// Generic, non-match rooms (global/club/cluster/watch-party lists from the
+// consuming app's static room fixtures) live directly under the `roomId` as
+// the Stream channel id — no Supabase-backed match record involved.
+const ROOM_CHANNEL_TYPE = 'messaging';
+
+export async function ensureRoomChannel(roomId: string, userId: string) {
+  const stream = getStreamClient();
+  const channel = stream.channel(ROOM_CHANNEL_TYPE, roomId, {
+    created_by_id: userId,
+    members: [userId],
+  } as Record<string, unknown>);
+
+  await channel.create();
+  await channel.addMembers([userId]);
+
+  return {
+    channelType: ROOM_CHANNEL_TYPE,
+    channelId: roomId,
+  };
+}
+
 export type ChatMessageLine = {
   userId: string;
   name?: string;

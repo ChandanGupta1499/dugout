@@ -1,11 +1,15 @@
-import type { QuizQuestion } from '@/components/dugout/QuizSheet';
-import { MOCK_QUIZ_QUESTION } from '@/lib/quiz-mock';
-import { INITIAL_SPINS_LEFT, MOCK_SPIN_PRIZES, type SpinPrize } from '@/lib/spin-mock';
+import type { QuizQuestion } from "@/components/dugout/QuizSheet";
+import { MOCK_QUIZ_QUESTION } from "@/lib/quiz-mock";
+import {
+  INITIAL_SPINS_LEFT,
+  MOCK_SPIN_PRIZES,
+  type SpinPrize,
+} from "@/lib/spin-mock";
 
 export type ActiveGame =
-  | { type: 'quiz'; question: QuizQuestion }
-  | { type: 'spin'; prizes: SpinPrize[]; spinsLeft: number }
-  | { type: 'none' };
+  | { type: "quiz"; question: QuizQuestion }
+  | { type: "spin"; prizes: SpinPrize[]; spinsLeft: number }
+  | { type: "none" };
 
 const MOCK_DELAY_MS = 400;
 
@@ -14,9 +18,13 @@ const MOCK_DELAY_MS = 400;
 export async function fetchActiveGame(matchId: string): Promise<ActiveGame> {
   void matchId; // accepted for signature parity with the future real endpoint
   await new Promise((resolve) => setTimeout(resolve, MOCK_DELAY_MS));
-  const type = Math.random() < 0.5 ? 'quiz' : 'spin';
-  if (type === 'quiz') {
-    return { type: 'quiz', question: MOCK_QUIZ_QUESTION };
+  const type = Math.random() < 0.1 ? "quiz" : "spin";
+  if (type === "quiz") {
+    return { type: "quiz", question: MOCK_QUIZ_QUESTION };
   }
-  return { type: 'spin', prizes: MOCK_SPIN_PRIZES, spinsLeft: INITIAL_SPINS_LEFT };
+  return {
+    type: "spin",
+    prizes: MOCK_SPIN_PRIZES,
+    spinsLeft: INITIAL_SPINS_LEFT,
+  };
 }

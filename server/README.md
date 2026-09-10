@@ -14,6 +14,7 @@ Required env:
 
 - `STREAM_API_KEY` / `STREAM_API_SECRET` — Stream Chat dashboard
 - `GEMINI_API_KEY` — Google AI Studio / Gemini API key
+- `GIPHY_API_KEY` — free Giphy API key ([developers.giphy.com](https://developers.giphy.com/)) for chat GIF/sticker search (`GET /media/giphy`)
 - `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — Supabase project (service role; server only)
 - `ADMIN_API_KEY` — shared secret for sim-ui `/admin/*` inject routes (`X-Admin-Key` header)
 - `PORT` — optional locally (defaults to `3001`); Render sets this automatically
@@ -48,6 +49,7 @@ Repo includes [`render.yaml`](render.yaml) in this folder so you can deploy with
    - `STREAM_API_KEY`
    - `STREAM_API_SECRET`
    - `GEMINI_API_KEY`
+   - `GIPHY_API_KEY`
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `ADMIN_API_KEY`
@@ -99,6 +101,7 @@ EXPO_PUBLIC_STREAM_API_KEY=your_stream_api_key
 - `POST /token` body `{ userId, name }` → `{ apiKey, token, user }`
 - `POST /channels/match` body `{ matchId, userId }` → `{ channelType, channelId }` (400 if match has no channel id)
 - `POST /bot/banter` body `{ matchId, team }` → `{ text, botUserId, messageId, channelId }`
+- `GET /media/giphy?kind=gif|sticker&q=&limit=24` → `{ items: [{ id, title, previewUrl, url }] }` (503 if `GIPHY_API_KEY` missing)
 - `POST /admin/chat` header `X-Admin-Key` body `{ matchId, text, author? }` → Stream crowd message
 - `POST /admin/commentary` header `X-Admin-Key` body `{ matchId, text, minute?, type?, scoreAfter? }` → Supabase row
 - `GET /admin/commentary?matchId=` header `X-Admin-Key` → commentary rows for that match

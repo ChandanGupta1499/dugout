@@ -1,4 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { router, Stack, useLocalSearchParams } from "expo-router";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -9,20 +10,25 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useChatContext } from 'stream-chat-expo';
-import type { Channel as StreamChannel, LocalMessage } from 'stream-chat';
+} from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import type { LocalMessage, Channel as StreamChannel } from "stream-chat";
+import { useChatContext } from "stream-chat-expo";
 
-import { BotBanterBar } from '@/components/dugout/BotBanterBar';
-import { ChatBubble, type ChatBubbleKind } from '@/components/dugout/ChatBubble';
-import { ChatHeader } from '@/components/dugout/ChatHeader';
-import { Composer } from '@/components/dugout/Composer';
-import { MediaSheet } from '@/components/dugout/MediaSheet';
-import { QuizSheet } from '@/components/dugout/QuizSheet';
-import { ScoreStrip } from '@/components/dugout/ScoreStrip';
-import { SpinWheelOverlay } from '@/components/dugout/SpinWheelOverlay';
+import { BotBanterBar } from "@/components/dugout/BotBanterBar";
+import {
+  ChatBubble,
+  type ChatBubbleKind,
+} from "@/components/dugout/ChatBubble";
+import { ChatHeader } from "@/components/dugout/ChatHeader";
+import { Composer } from "@/components/dugout/Composer";
+import { MediaSheet } from "@/components/dugout/MediaSheet";
+import { QuizSheet } from "@/components/dugout/QuizSheet";
+import { ScoreStrip } from "@/components/dugout/ScoreStrip";
+import { SpinWheelOverlay } from "@/components/dugout/SpinWheelOverlay";
 import {
   ensureMatchChannel,
   fetchMatch,
@@ -31,20 +37,23 @@ import {
   type GiphyItem,
   type GiphyKind,
   type MatchScoreboard,
-} from '@/lib/api';
-import { fetchActiveGame, type ActiveGame } from '@/lib/games';
-import type { Match, MatchTeam } from '@/lib/matches';
-import { MOCK_QUIZ_QUESTION } from '@/lib/quiz-mock';
-import { isReactionType, type ReactionType } from '@/lib/reactions';
-import { INITIAL_SPINS_LEFT, MOCK_SPIN_PRIZES } from '@/lib/spin-mock';
-import { semantic, spacing } from '@/theme/tokens';
-import { useGuest } from '@/providers/chat-provider';
+} from "@/lib/api";
+import { fetchActiveGame, type ActiveGame } from "@/lib/games";
+import type { Match, MatchTeam } from "@/lib/matches";
+import { MOCK_QUIZ_QUESTION } from "@/lib/quiz-mock";
+import { isReactionType, type ReactionType } from "@/lib/reactions";
+import { INITIAL_SPINS_LEFT, MOCK_SPIN_PRIZES } from "@/lib/spin-mock";
+import { useGuest } from "@/providers/chat-provider";
+import { semantic, spacing } from "@/theme/tokens";
 
-function classifyMessage(message: LocalMessage, guestId: string): ChatBubbleKind {
-  const userId = message.user?.id ?? '';
-  if (userId === guestId) return 'own';
-  if (userId.startsWith('bot-')) return 'bot';
-  return 'member';
+function classifyMessage(
+  message: LocalMessage,
+  guestId: string,
+): ChatBubbleKind {
+  const userId = message.user?.id ?? "";
+  if (userId === guestId) return "own";
+  if (userId.startsWith("bot-")) return "bot";
+  return "member";
 }
 
 function messageImageUrl(message: LocalMessage): string | undefined {
@@ -55,11 +64,11 @@ function messageImageUrl(message: LocalMessage): string | undefined {
     attachment.image_url,
     attachment.thumb_url,
     attachment.asset_url,
-    typeof record.imageUrl === 'string' ? record.imageUrl : undefined,
-    typeof record.gif_url === 'string' ? record.gif_url : undefined,
+    typeof record.imageUrl === "string" ? record.imageUrl : undefined,
+    typeof record.gif_url === "string" ? record.gif_url : undefined,
   ];
   for (const value of candidates) {
-    if (typeof value === 'string' && value.trim()) {
+    if (typeof value === "string" && value.trim()) {
       return value.trim();
     }
   }
@@ -70,7 +79,7 @@ function ownReactionTypes(message: LocalMessage): string[] {
   const own = message.own_reactions ?? [];
   return own
     .map((reaction) => reaction.type)
-    .filter((type): type is string => typeof type === 'string');
+    .filter((type): type is string => typeof type === "string");
 }
 
 type ChatMessageRowProps = {
@@ -92,7 +101,7 @@ const ChatMessageRow = memo(function ChatMessageRow({
   const counts = item.reaction_counts ?? {};
   const filteredCounts: Record<string, number> = {};
   for (const [type, count] of Object.entries(counts)) {
-    if (isReactionType(type) && typeof count === 'number' && count > 0) {
+    if (isReactionType(type) && typeof count === "number" && count > 0) {
       filteredCounts[type] = count;
     }
   }
@@ -111,14 +120,15 @@ const ChatMessageRow = memo(function ChatMessageRow({
   return (
     <ChatBubble
       kind={kind}
-      author={kind === 'own' ? undefined : item.user?.name ?? item.user?.id}
+      author={kind === "own" ? undefined : (item.user?.name ?? item.user?.id)}
       imageUrl={messageImageUrl(item)}
       reactionCounts={filteredCounts}
       ownReactions={ownReactionTypes(item)}
       showReactionPicker={showReactionPicker}
       onLongPress={handleLongPress}
-      onToggleReaction={handleToggleReaction}>
-      {item.text ?? ''}
+      onToggleReaction={handleToggleReaction}
+    >
+      {item.text ?? ""}
     </ChatBubble>
   );
 });
@@ -132,7 +142,7 @@ export default function MatchChatScreen() {
   const [match, setMatch] = useState<Match | null>(null);
   const [channel, setChannel] = useState<StreamChannel | null>(null);
   const [messages, setMessages] = useState<LocalMessage[]>([]);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [pendingTeam, setPendingTeam] = useState<string | null>(null);
@@ -157,7 +167,7 @@ export default function MatchChatScreen() {
 
   const joinChannel = useCallback(async () => {
     if (!matchId) {
-      setError('Missing match id');
+      setError("Missing match id");
       return;
     }
 
@@ -171,7 +181,7 @@ export default function MatchChatScreen() {
       setMatch(nextMatch);
 
       if (!nextMatch.channelId) {
-        setError('Chat isn’t set up for this match yet.');
+        setError("Chat isn’t set up for this match yet.");
         return;
       }
 
@@ -184,7 +194,8 @@ export default function MatchChatScreen() {
       setChannel(nextChannel);
       syncMessages(nextChannel);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to join chat';
+      const message =
+        err instanceof Error ? err.message : "Failed to join chat";
       setError(message);
     }
   }, [client, guest.userId, matchId, syncMessages]);
@@ -198,11 +209,11 @@ export default function MatchChatScreen() {
 
     const sync = () => syncMessages(channel);
     const listeners = [
-      channel.on('message.new', sync),
-      channel.on('message.updated', sync),
-      channel.on('message.deleted', sync),
-      channel.on('reaction.new', sync),
-      channel.on('reaction.deleted', sync),
+      channel.on("message.new", sync),
+      channel.on("message.updated", sync),
+      channel.on("message.deleted", sync),
+      channel.on("reaction.new", sync),
+      channel.on("reaction.deleted", sync),
     ];
 
     return () => {
@@ -211,8 +222,10 @@ export default function MatchChatScreen() {
   }, [channel, syncMessages]);
 
   useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
     const showSub = Keyboard.addListener(showEvent, (event) => {
       setKeyboardHeight(event.endCoordinates.height);
@@ -242,7 +255,7 @@ export default function MatchChatScreen() {
           setScoreboard(next);
         }
       } catch (err) {
-        console.warn('Scoreboard refresh failed', err);
+        console.warn("Scoreboard refresh failed", err);
       }
     };
 
@@ -270,8 +283,8 @@ export default function MatchChatScreen() {
         await requestBotBanter(matchId, team.slug);
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : 'Failed to post bot banter';
-        console.warn('Bot banter request failed', err);
+          err instanceof Error ? err.message : "Failed to post bot banter";
+        console.warn("Bot banter request failed", err);
         setBanterError(message);
       } finally {
         setPendingTeam(null);
@@ -284,13 +297,13 @@ export default function MatchChatScreen() {
     const text = draft.trim();
     if (!text || !channel) return;
 
-    setDraft('');
+    setDraft("");
     setMediaOpen(false);
     try {
       await channel.sendMessage({ text });
       syncMessages(channel);
     } catch (err) {
-      console.warn('Send message failed', err);
+      console.warn("Send message failed", err);
       setDraft(text);
     }
   }, [channel, draft, syncMessages]);
@@ -299,7 +312,9 @@ export default function MatchChatScreen() {
     async (messageId: string, type: ReactionType) => {
       if (!channel) return;
 
-      const message = channel.state.messages.find((item) => item.id === messageId);
+      const message = channel.state.messages.find(
+        (item) => item.id === messageId,
+      );
       const already =
         message?.own_reactions?.some((reaction) => reaction.type === type) ??
         false;
@@ -313,14 +328,16 @@ export default function MatchChatScreen() {
         syncMessages(channel);
         setReactionTargetId(null);
       } catch (err) {
-        console.warn('Toggle reaction failed', err);
+        console.warn("Toggle reaction failed", err);
       }
     },
     [channel, syncMessages],
   );
 
   const handleLongPressMessage = useCallback((messageId: string) => {
-    setReactionTargetId((current) => (current === messageId ? null : messageId));
+    setReactionTargetId((current) =>
+      current === messageId ? null : messageId,
+    );
   }, []);
 
   const sendMedia = useCallback(
@@ -329,7 +346,7 @@ export default function MatchChatScreen() {
 
       const imageUrl = item.url?.trim() || item.previewUrl?.trim();
       if (!imageUrl) {
-        console.warn('Send media failed: missing image url');
+        console.warn("Send media failed: missing image url");
         return;
       }
 
@@ -337,21 +354,22 @@ export default function MatchChatScreen() {
         await channel.sendMessage({
           // Stream drops completely empty messages more readily; a space keeps
           // the attachment message valid while staying visually blank.
-          text: ' ',
+          text: " ",
           attachments: [
             {
-              type: 'image',
+              type: "image",
               image_url: imageUrl,
               thumb_url: item.previewUrl?.trim() || imageUrl,
               asset_url: imageUrl,
-              title: item.title?.trim() || (kind === 'sticker' ? 'Sticker' : 'GIF'),
+              title:
+                item.title?.trim() || (kind === "sticker" ? "Sticker" : "GIF"),
             },
           ],
         });
         syncMessages(channel);
         setMediaOpen(false);
       } catch (err) {
-        console.warn('Send media failed', err);
+        console.warn("Send media failed", err);
       }
     },
     [channel, syncMessages],
@@ -367,12 +385,13 @@ export default function MatchChatScreen() {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
-        <SafeAreaView style={styles.centered} edges={['top', 'bottom']}>
+        <SafeAreaView style={styles.centered} edges={["top", "bottom"]}>
           <Text style={styles.message}>Could not open match chat.</Text>
           <Text style={styles.detail}>{error}</Text>
           <Pressable
             style={styles.retryButton}
-            onPress={() => setRetryCount((count) => count + 1)}>
+            onPress={() => setRetryCount((count) => count + 1)}
+          >
             <Text style={styles.retryButtonLabel}>Retry</Text>
           </Pressable>
         </SafeAreaView>
@@ -384,7 +403,7 @@ export default function MatchChatScreen() {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
-        <SafeAreaView style={styles.centered} edges={['top', 'bottom']}>
+        <SafeAreaView style={styles.centered} edges={["top", "bottom"]}>
           <ActivityIndicator color={semantic.textBrand} />
           <Text style={styles.message}>Joining match chat…</Text>
         </SafeAreaView>
@@ -395,13 +414,14 @@ export default function MatchChatScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <SafeAreaView style={styles.flex} edges={['top']}>
+      <SafeAreaView style={styles.flex} edges={["top"]}>
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={0}>
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={0}
+        >
           <ChatHeader
-            title={match?.title ?? 'Chat'}
+            title={match?.title ?? "Chat"}
             meta={scoreboard ? scoreboard.clockLabel : undefined}
             onBack={() => router.back()}
           />
@@ -431,7 +451,7 @@ export default function MatchChatScreen() {
               />
             )}
           />
-          {hasBotTeams && match?.teamA && match?.teamB ? (
+          {hasBotTeams && match?.teamA && match?.teamB && false ? (
             <BotBanterBar
               teamA={match.teamA}
               teamB={match.teamB}
@@ -440,7 +460,9 @@ export default function MatchChatScreen() {
               onTrigger={(team) => void triggerBanter(team)}
             />
           ) : null}
-          <View style={[styles.composerWrap, { paddingBottom: composerBottomPad }]}>
+          <View
+            style={[styles.composerWrap, { paddingBottom: composerBottomPad }]}
+          >
             <Composer
               value={draft}
               onChangeText={setDraft}
@@ -463,7 +485,7 @@ export default function MatchChatScreen() {
                 void fetchActiveGame(matchId)
                   .then(setActiveGame)
                   .catch((err) => {
-                    console.warn('Fetch active game failed', err);
+                    console.warn("Fetch active game failed", err);
                   })
                   .finally(() => setLoadingGame(false));
               }}
@@ -478,15 +500,23 @@ export default function MatchChatScreen() {
         onPickMedia={(item, kind) => void sendMedia(item, kind)}
       />
       <QuizSheet
-        visible={activeGame?.type === 'quiz'}
-        question={activeGame?.type === 'quiz' ? activeGame.question : MOCK_QUIZ_QUESTION}
+        visible={activeGame?.type === "quiz"}
+        question={
+          activeGame?.type === "quiz" ? activeGame.question : MOCK_QUIZ_QUESTION
+        }
         liveLabel={scoreboard ? `LIVE · ${scoreboard.clockLabel}` : undefined}
         onClose={() => setActiveGame(null)}
       />
       <SpinWheelOverlay
-        visible={activeGame?.type === 'spin'}
-        prizes={activeGame?.type === 'spin' ? activeGame.prizes : MOCK_SPIN_PRIZES}
-        initialSpinsLeft={activeGame?.type === 'spin' ? activeGame.spinsLeft : INITIAL_SPINS_LEFT}
+        visible={activeGame?.type === "spin"}
+        prizes={
+          activeGame?.type === "spin" ? activeGame.prizes : MOCK_SPIN_PRIZES
+        }
+        initialSpinsLeft={
+          activeGame?.type === "spin"
+            ? activeGame.spinsLeft
+            : INITIAL_SPINS_LEFT
+        }
         onClose={() => setActiveGame(null)}
       />
     </>
@@ -500,21 +530,21 @@ const styles = StyleSheet.create({
   },
   centered: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: 24,
     gap: 12,
     backgroundColor: semantic.surfacePage,
   },
   message: {
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
     color: semantic.textDisplay,
   },
   detail: {
     fontSize: 13,
     color: semantic.textMuted,
-    textAlign: 'center',
+    textAlign: "center",
   },
   retryButton: {
     marginTop: 8,
@@ -525,7 +555,7 @@ const styles = StyleSheet.create({
   },
   retryButtonLabel: {
     color: semantic.textOnBrand,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   scoreStripWrap: {
     paddingHorizontal: spacing.gutterScreen,
