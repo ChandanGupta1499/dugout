@@ -36,15 +36,35 @@ show spin or quiz."
 - No T&C content/screen — the link renders but is inert (no navigation target exists yet).
 - No changes to `QuizSheet`'s own internals — only how it's *triggered* changes.
 
+## Data: `src/lib/spin-mock.ts`
+
+`SpinPrize`/`SpinPrizeIcon` are defined here (not in `games.ts`) precisely so `games.ts` only ever
+imports *from* `spin-mock.ts` and never the other way around — a clean one-way dependency, the
+same shape as `quiz-mock.ts`'s one-way type import from `QuizSheet.tsx`, just with the type's home
+file swapped. `SpinWheelOverlay.tsx` also imports `SpinPrize`/`SpinPrizeIcon` from here.
+
+```ts
+export type SpinPrizeIcon = 'coins' | 'car' | 'smartphone' | 'bike' | 'gift' | 'award';
+export type SpinPrize = { id: string; label: string; icon: SpinPrizeIcon };
+
+export const INITIAL_SPINS_LEFT = 2;
+
+export const MOCK_SPIN_PRIZES: SpinPrize[] = [
+  { id: 'coins', label: '500 Coins', icon: 'coins' },
+  { id: 'car', label: 'Toy Car', icon: 'car' },
+  { id: 'phone', label: 'Smartphone', icon: 'smartphone' },
+  { id: 'bike', label: 'Bike', icon: 'bike' },
+  { id: 'goldbar', label: 'Gold Bar', icon: 'award' },
+  { id: 'gift', label: 'Mystery Gift', icon: 'gift' },
+];
+```
+
 ## Data & types: `src/lib/games.ts`
 
 ```ts
 import type { QuizQuestion } from '@/components/dugout/QuizSheet';
 import { MOCK_QUIZ_QUESTION } from '@/lib/quiz-mock';
-import { MOCK_SPIN_PRIZES, INITIAL_SPINS_LEFT } from '@/lib/spin-mock';
-
-export type SpinPrize = { id: string; label: string; icon: SpinPrizeIcon };
-export type SpinPrizeIcon = 'coins' | 'car' | 'smartphone' | 'bike' | 'gift' | 'award';
+import { MOCK_SPIN_PRIZES, INITIAL_SPINS_LEFT, type SpinPrize } from '@/lib/spin-mock';
 
 export type ActiveGame =
   | { type: 'quiz'; question: QuizQuestion }
@@ -67,31 +87,6 @@ export async function fetchActiveGame(matchId: string): Promise<ActiveGame> {
 
 `matchId` is accepted (for signature parity with a future real endpoint) but unused by the mock
 body — this is expected and not a defect.
-
-## Data: `src/lib/spin-mock.ts`
-
-Six mock prizes (icon-based placeholders — no custom art in this slice) and the starting spin
-count:
-
-```ts
-import type { SpinPrize } from '@/lib/games';
-
-export const INITIAL_SPINS_LEFT = 2;
-
-export const MOCK_SPIN_PRIZES: SpinPrize[] = [
-  { id: 'coins', label: '500 Coins', icon: 'coins' },
-  { id: 'car', label: 'Toy Car', icon: 'car' },
-  { id: 'phone', label: 'Smartphone', icon: 'smartphone' },
-  { id: 'bike', label: 'Bike', icon: 'bike' },
-  { id: 'goldbar', label: 'Gold Bar', icon: 'award' },
-  { id: 'gift', label: 'Mystery Gift', icon: 'gift' },
-];
-```
-
-(`spin-mock.ts` imports the `SpinPrize` type from `games.ts`, and `games.ts` imports the mock array
-from `spin-mock.ts` — this is fine in TS/ES modules since only a type is imported back into
-`spin-mock.ts`, so there's no runtime circular-import issue. Confirmed pattern: same shape as
-`quiz-mock.ts` importing `QuizQuestion` from `QuizSheet.tsx`.)
 
 ## Component: `src/components/dugout/SpinWheelOverlay.tsx`
 
@@ -121,16 +116,41 @@ brief post-result pause) — spinning must not be interruptible by an accidental
 
 ### Wheel graphic (`react-native-svg`)
 
+**Feasibility flag:** `react-native-svg` has zero existing usage anywhere in this app today — this
+is the first time it's actually driven by Reanimated here. `Animated.createAnimatedComponent`
+wrapping an `react-native-svg` `G` and rotating it via `useAnimatedProps` is a documented,
+widely-used pattern for this exact library pairing, but it is *not yet verified in this codebase*.
+The implementation plan must include a small standalone spike (render one static SVG circle,
+confirm it rotates smoothly via a Reanimated shared value on both iOS and Android) as its first
+task, before building the full wheel on top of that foundation — treat this as a de-risking step,
+not a formality.
+
+**Required `Icon.tsx` additions:** none of `coins`/`car`/`smartphone`/`bike`/`gift`/`award` exist
+in `src/components/dugout/Icon.tsx` today. The plan must add all six as new `ICONS` map entries
+before `SpinWheelOverlay.tsx` can compile:
+
+```ts
+import { Award, Bike, Car, Coins, Gift, Smartphone } from 'lucide-react-native';
+// ...added to the existing ICONS map:
+coins: Coins,
+car: Car,
+smartphone: Smartphone,
+bike: Bike,
+gift: Gift,
+award: Award,
+```
+
+(All six are confirmed exports of the installed `lucide-react-native` version.)
+
 - Outer gold ring: `Circle` stroke, `colors.amber600`-ish gold tone, radius ~140.
 - 6 pie segments via `Path` arcs, alternating `semantic.surfaceBrand` (red) and `semantic.surfaceTint`
   (light pink) fills, each spanning 60°.
-- Each segment's prize icon (lucide, from `SpinPrizeIcon` → component map, mirroring `Icon.tsx`'s
-  pattern) is placed at that segment's mid-angle, at ~65% of the radius from center, wrapped in a
-  small white circular badge for contrast (same visual idea as the reference's white icon discs).
+- Each segment's prize icon (via the `Icon.tsx` names added above) is placed at that segment's
+  mid-angle, at ~65% of the radius from center, wrapped in a small white circular badge for
+  contrast (same visual idea as the reference's white icon discs).
 - All of the above (ring, segments, icons) lives inside one rotating `<G>` whose `rotation`/
   `origin` prop is driven by a Reanimated shared value converted to a plain number each frame
-  (via `useAnimatedProps` on the `G`, since `react-native-svg` supports Reanimated through
-  `Animated.createAnimatedComponent`).
+  (via `useAnimatedProps` on the `G`).
 - A static (non-rotating) pointer triangle sits above the wheel at 12 o'clock, outside the `<G>`.
 
 ### Center hub
@@ -160,29 +180,56 @@ type Phase = 'idle' | 'spinning' | 'result';
   0`; reaching 0 calls the same `startSpin()` used by the hub tap.
 - `rotation` — a Reanimated shared value (`useSharedValue(0)`), persists across spins (each spin
   adds to it rather than resetting to 0, so the wheel always turns forward, never snaps back).
+
+**Angle convention (must be followed exactly, not re-derived per-implementation):**
+- Segment `i` (0-indexed, 0-5) is drawn spanning `[i * 60°, (i + 1) * 60°)` using standard SVG
+  arc angles: 0° is 3 o'clock, angles increase **clockwise** (this is `react-native-svg`'s/SVG's
+  native convention — no sign flip needed when computing `Path` arc coordinates with
+  `cos`/`sin`). Segment `i`'s center angle is therefore `i * 60 + 30` degrees.
+- The static pointer is drawn at 12 o'clock, which is **270°** in that same convention (or
+  equivalently `-90°`).
+- The `<G>` rotates **clockwise** for positive `rotation` values (SVG's `rotation` prop convention).
+  After rotating the group by `R` degrees, the segment that was originally at angle `A` is now at
+  angle `A + R` (mod 360). For the winning segment (`winningIndex`, drawn center angle
+  `Aw = winningIndex * 60 + 30`) to land under the pointer at 270°, we need
+  `(Aw + R) mod 360 === 270`, i.e. `R mod 360 === (270 - Aw) mod 360`.
+- `startSpin()` computes: `targetMod = ((270 - Aw) % 360 + 360) % 360` (normalize to [0, 360)),
+  then `target = (Math.ceil(rotation.value / 360) * 360) + (4 * 360) + targetMod` — i.e. take the
+  current rotation up to its next full multiple of 360, add 4 extra full spins for visual effect,
+  then add `targetMod` so the final absolute angle mod 360 equals `targetMod`. This guarantees
+  `target > rotation.value` (always spins forward) and lands exactly on the winning segment.
 - `startSpin()`: guarded to no-op unless `phase === 'idle' && spinsLeft > 0`. Picks
-  `winningIndex = Math.floor(Math.random() * prizes.length)`, computes the target absolute
-  rotation (current rotation, rounded up to the next full multiple of 360, plus `4 * 360` extra
-  full turns, plus the offset needed to bring `winningIndex`'s segment center under the top
-  pointer), sets `phase = 'spinning'`, and animates `rotation` to that target via
-  `withTiming(target, { duration: 3000, easing: Easing.out(Easing.cubic) })` with a
-  `runOnJS`-wrapped completion callback.
-- On spin completion: set `phase = 'result'` (segment visually highlighted — e.g. a subtle
-  scale/opacity pulse on that segment's icon badge — for 1.2s), decrement `spinsLeft`, then after
-  the 1.2s pause: if `spinsLeft > 0`, reset `phase = 'idle'` and `countdownSec = 10` (arming the
-  next auto-spin countdown); if `spinsLeft === 0`, call `onClose()` — the last spin (whether
-  triggered manually or by auto-spin) always ends by closing the overlay once its result has been
-  shown, per the user's explicit direction ("let the user spin or close it after auto spin").
-- Reset-on-close: like `QuizSheet`, a `!visible` effect resets `spinsLeft`, `phase`, `countdownSec`,
-  and `rotation.value` back to their initial values so reopening the overlay always starts fresh
-  (Modal doesn't unmount on `visible=false`).
+  `winningIndex = Math.floor(Math.random() * prizes.length)`, computes `target` per the formula
+  above, sets `phase = 'spinning'`, and animates via
+  `rotation.value = withTiming(target, { duration: 3000, easing: Easing.out(Easing.cubic) },
+  (finished) => { if (finished) runOnJS(handleSpinLanded)(winningIndex); })`. **The `finished`
+  guard is required**: `withTiming`'s callback fires with `finished=false` if `rotation` is
+  reassigned mid-flight (e.g. by the reset-on-close effect below) — only treat the spin as landed
+  when `finished === true`, otherwise skip the state transition entirely (the reset effect already
+  puts `phase` back to `'idle'` in that case, so there is nothing else to do).
+- `handleSpinLanded(winningIndex)` (runs on JS thread): set `phase = 'result'` (the landed
+  segment's icon badge gets a brief scale/opacity pulse for 1.2s), decrement `spinsLeft`, and
+  schedule a single `setTimeout(..., 1200)` — stored in a ref so it can be cleared — that then:
+  if `spinsLeft > 0`, resets `phase = 'idle'` and `countdownSec = 10` (arming the next auto-spin
+  countdown); if `spinsLeft === 0`, calls `onClose()`. The last spin (whether triggered manually or
+  by auto-spin) always ends by closing the overlay once its result has been shown, per the user's
+  explicit direction ("let the user spin or close it after auto spin").
+- Cleanup: the component clears both the countdown `setInterval` and the result-pause `setTimeout`
+  (via refs, same pattern as `QuizSheet`'s `intervalRef`) on unmount and whenever `visible` becomes
+  `false`, so neither can call `setState` after the overlay is gone.
+- Reset-on-close: like `QuizSheet`, a `!visible` effect clears both timers, then resets `spinsLeft`,
+  `phase`, `countdownSec`, and `rotation.value` back to their initial values (no `withTiming` — a
+  direct assignment, so any in-flight animation's callback subsequently fires with
+  `finished=false` and is correctly ignored per the guard above) so reopening the overlay always
+  starts fresh (Modal doesn't unmount on `visible=false`).
 
 ## Integration: `src/app/match/[matchId]/chat.tsx`
 
 - New state: `activeGame: ActiveGame | null`, `loadingGame: boolean`.
-- The `Composer`'s `onOpenQuiz` prop is renamed to a generic `onOpenGame` (prop rename inside
-  `Composer.tsx` too — it's still the same round gamepad button, just no longer quiz-specific).
-  Handler:
+- The `Composer`'s public props rename: `onOpenQuiz` → `onOpenGame`, `quizBadge` → `gameBadge`.
+  Rename the internal bits too, for consistency (it's still the same round gamepad button, just no
+  longer quiz-specific): the destructured prop names, and the style keys `styles.quizButton` →
+  `styles.gameButton`, `styles.quizBadge` → `styles.gameBadge` in `Composer.tsx`. Handler:
 
   ```ts
   onOpenGame: async () => {
